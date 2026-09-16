@@ -1,0 +1,9 @@
+services:
+  backend:
+    build: .
+    container_name: blink-backend
+    env_file:
+      - .env.docker
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

@@ -1,0 +1,164 @@
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+import { pool } from "../config/database.js";
+import { generateAccessToken } from "../utils/jwt.js";
+import { createOtp, verifyOtp } from "./otpService.js";
+
+export async function login(email: string, password: string) {
+  // 1. หา User
+  const userResult = await pool.query(
+    `
+    SELECT
+      user_id,
+      email,
+      user_name,
+      role_user,
+      status_active
+    FROM user_service.users
+    WHERE email = $1
+    LIMIT 1
+    `,
+    [email],
+  );
+
+  if (userResult.rows.length === 0) {
+    throw new Error("Invalid email or password");
+  }
+
+  const user = userResult.rows[0];
+
+  // 2. ตรวจสอบ Status
+  if (user.status_active !== "ACTIVE") {
+    throw new Error("User account is not active");
+  }
+
+  // 3. หา Authentication
+  const authResult = await pool.query(
+    `
+    SELECT
+      auth_id,
+      password_hash,
+      login_provider
+    FROM auth_service.user_auth
+    WHERE user_id = $1
+      AND login_provider = 'LOCAL'
+    LIMIT 1
+    `,
+    [user.user_id],
+  );
+
+  if (authResult.rows.length === 0) {
+    throw new Error("Invalid email or password");
+  }
+
+  const auth = authResult.rows[0];
+
+  // 4. ตรวจ Password
+  if (!auth.password_hash) {
+    throw new Error("Invalid email or password");
+  }
+
+  const passwordMatch = await bcrypt.compare(password, auth.password_hash);
+
+  if (!passwordMatch) {
+    throw new Error("Invalid email or password");
+  }
+  await createOtp(user.user_id, user.email);
+
+  return {
+    requiresOtp: true,
+    user_id: user.user_id,
+  };
+
+  //   // 5. สร้าง JWT
+  //   const accessToken = generateAccessToken(
+  //     String(user.user_id),
+  //     user.role
+  //   );
+
+  //   // 6. อัปเดตเวลา Login
+  //   await pool.query(
+  //     `
+  //     UPDATE auth_service.user_auth
+  //     SET last_login_at = CURRENT_TIMESTAMP,
+  //         updated_at = CURRENT_TIMESTAMP
+  //     WHERE auth_id = $1
+  //     `,
+  //     [auth.auth_id]
+  //   );
+
+  //   // 7. ส่งผลลัพธ์
+  //   return {
+  //     accessToken,
+  //     user: {
+  //       user_id: user.user_id,
+  //       email: user.email,
+  //       user_name: user.user_name,
+  //       role_user: user.role_user,
+  //     },
+  //   };
+}
+
+export async function verifyOtpLogin(userId: number, otp: string) {
+  // ตรวจ OTP
+  await verifyOtp(userId, otp);
+
+  // ดึงข้อมูล User
+  const result = await pool.query(
+    `
+    SELECT
+      u.user_id,
+      u.email,
+      u.user_name,
+      u.role_user
+    FROM user_service.users u
+    WHERE u.user_id = $1
+    `,
+    [userId],
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("User not found");
+  }
+
+  const user = result.rows[0];
+
+  // สร้าง Access Token
+  const accessToken = generateAccessToken(
+    user.user_id.toString(),
+    user.role_user,
+  );
+
+  // สร้าง Refresh Token
+  const refreshToken = crypto.randomBytes(64).toString("hex");
+
+  // เก็บ Refresh Token
+  await pool.query(
+    `
+    INSERT INTO auth_service.refresh_token
+    (
+      user_id,
+      refresh_token,
+      expires_at
+    )
+    VALUES (
+      $1,
+      $2,
+      CURRENT_TIMESTAMP + INTERVAL '7 days'
+    )
+    `,
+    [user.user_id, refreshToken],
+  );
+
+  return {
+    accessToken,
+    refreshToken,
+
+    user: {
+      user_id: user.user_id,
+      email: user.email,
+      user_name: user.user_name,
+      role_user: user.role_user,
+    },
+  };
+}

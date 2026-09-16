@@ -1,0 +1,895 @@
+/* ===================================================
+   TOP BAR
+=================================================== */
+.topbar{
+
+    position: fixed;
+
+
+    left:clamp(220px,20vw,480px);
+
+    right:20px;
+
+    height:85px;
+
+    background:#fff;
+
+    border-radius:18px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    padding:0 30px;
+
+    z-index:500;
+}
+.top-divider{
+    position: fixed;
+
+    left: 200px;      /* เท่าความกว้าง Sidebar */
+    right: 0;
+    top: 80px;       /* ใต้ Topbar */
+
+    height: 1px;
+
+    background: #e5e7eb;
+
+    z-index: 400;
+}
+
+.vertical-divider{
+
+    width: 1.19px;
+
+    height:45px;
+
+    background:#5d5d5d9a;
+
+    margin:0 4px;
+
+    flex-shrink:0;
+}
+.page-title{
+    font-family: 'Manrope', sans-serif;
+
+    font-size: 17.5px;
+
+    font-weight: 600;
+
+    margin-top: 3.5px;
+    padding-left: 25px;
+    color: #434446;
+}
+.topbar-left {
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+}
+
+.topbar-logo {
+  width: 45px;
+
+  height: 45px;
+
+  border-radius: 12px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+  background: rgb(36, 67, 176);
+  color: rgb(255, 255, 255);
+
+  font-size: 26px;
+}
+
+.topbar h2 {
+  font-size: 27px;
+
+  font-weight: 500;
+
+  color: #111827;
+  font-family: "JetBrains Mono", sans-serif;
+  font-style: italic;
+  letter-spacing: -0.5px;
+}
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.sidebar {
+  width: 200px;
+
+  flex-shrink: 0;
+
+  min-height: 100vh;
+
+  padding: 25px;
+
+  display: flex;
+  flex-direction: column;
+
+  background: transparent;
+  flex-direction: column;
+  transition:
+    width 0.25s ease,
+    padding 0.25s ease;
+}
+
+/* =========================================================
+   LOGO
+========================================================= */
+
+.logo {
+  display: flex;
+
+  align-items: center;
+
+  gap: 1px;
+
+  padding-left: 1px;
+
+  margin-bottom: 25px;
+}
+
+.logo img {
+  width: 120px;
+
+  height: 60px;
+
+  object-fit: contain;
+}
+
+.logo h2 {
+  color: #000;
+
+  font-size: 20px;
+
+  padding-right: 22px;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
+}
+
+/* =========================================================
+   MAIN MENU
+========================================================= */
+
+.main-menus {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+}
+
+.menu {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  position: relative;
+
+  width: 100%;
+
+  border: none;
+
+  background: transparent;
+
+  color: #494a4b;
+
+  text-align: left;
+
+  padding: 10px 13px;
+
+  margin-bottom: 5px;
+
+  border-radius: 14px;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+
+  overflow: hidden;
+
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.menu svg {
+  font-size: 21px;
+
+  flex-shrink: 0;
+}
+
+.menu span {
+  font-size: 13px;
+}
+
+.menu:hover {
+  background: rgba(255, 255, 255, 0.55);
+
+  color: #2563eb;
+
+  transform: translateX(3px);
+}
+
+/* =========================================================
+   ACTIVE MENU
+========================================================= */
+
+.menu.active {
+  background: rgba(255, 255, 255, 0.88);
+
+  color: #2563eb;
+
+  border: 1px solid rgba(255, 255, 255, 0.7);
+
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.08);
+}
+
+.menu::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+
+  top: 6px;
+
+  bottom: 6px;
+
+  width: 4px;
+
+  border-radius: 999px;
+
+  background: transparent;
+
+  transition: background-color 0.18s ease;
+}
+
+.menu.active::before {
+  background: #2563eb;
+}
+
+/* =========================================================
+   DIVIDER
+========================================================= */
+
+.divider {
+  width: 90%;
+
+  height: 1px;
+
+  background: rgba(60, 60, 62, 0.18);
+
+  margin: 15px auto 8px;
+}
+
+.Menubottom {
+  margin: 5px 10px 8px;
+}
+
+.setting {
+  font-size: 12px;
+
+  color: rgba(0, 0, 0, 0.55);
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
+
+  font-weight: 500;
+}
+
+/* =========================================================
+   BOTTOM MENU / SETTINGS
+========================================================= */
+
+.bottom-menus {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+}
+
+/* =========================================================
+   PROFILE
+========================================================= */
+
+.profile-section {
+  margin-top: auto;
+
+  padding-top: 20px;
+}
+
+.profile-card {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  padding: 12px;
+
+  background: #f8fafc;
+
+  border-radius: 14px;
+
+  cursor: pointer;
+
+  transition: background-color 0.2s ease;
+}
+
+.profile-card:hover {
+  background: #f1f5f9;
+}
+
+.profile-left {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  min-width: 0;
+}
+
+.avatar {
+  width: 42px;
+
+  height: 42px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #2563eb;
+
+  color: white;
+
+  display: flex;
+
+  justify-content: center;
+
+  align-items: center;
+
+  font-weight: 700;
+
+  font-size: 17px;
+}
+
+.profile-left h4 {
+  margin: 0;
+
+  font-size: 15px;
+}
+
+.profile-left p {
+  margin: 2px 0 0;
+
+  font-size: 12px;
+
+  color: #64748b;
+}
+
+.arrow-icon {
+  width: 24px;
+
+  height: 24px;
+
+  color: #64748b;
+
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   PROFILE MENU
+========================================================= */
+
+.profile-menu {
+  width: 100%;
+
+  margin-top: 8px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.profile-action {
+  width: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px 15px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: transparent;
+
+  color: #333;
+
+  font-size: 14px;
+
+  cursor: pointer;
+
+  transition: background-color 0.2s ease;
+}
+
+.profile-action:hover {
+  background: #f1f3f7;
+}
+
+/* =========================================================
+   LOGOUT
+========================================================= */
+
+.logout-btn {
+  width: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px 15px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: transparent;
+
+  color: #e53935;
+
+  font-size: 14px;
+
+  cursor: pointer;
+
+  transition: background-color 0.2s ease;
+}
+
+.logout-btn:hover {
+  background: #fff0f0;
+}
+
+/* =========================================================
+   GUEST
+========================================================= */
+
+.guest-actions {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 10px;
+
+  margin-top: 15px;
+
+  padding: 0 5px;
+}
+
+.login-btn {
+  width: 100%;
+
+  height: 46px;
+
+  border: none;
+
+  border-radius: 16px;
+
+  background: #061978;
+
+  color: #fff;
+
+  font-family: "Noto Sans Thai", sans-serif;
+
+  font-size: 16px;
+
+  font-weight: 400;
+
+  line-height: 1;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  cursor: pointer;
+
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.login-btn:hover {
+  box-shadow: 0 5px 10px rgba(37, 99, 235, 0.18);
+
+  transform: translateY(-1px);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+
+  box-shadow: none;
+}
+
+.register-btn {
+  width: 100%;
+
+  height: 46px;
+
+  border: 2px solid #e5e7eb;
+
+  border-radius: 16px;
+
+  background: #ffffff;
+
+  color: #374151;
+
+  font-family: "Noto Sans Thai", sans-serif;
+
+  font-size: 16px;
+
+  font-weight: 400;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.register-btn:hover {
+  border-color: #d1d5db;
+
+  color: #111827;
+
+  transform: translateY(-1px);
+}
+
+.register-btn:active {
+  transform: translateY(0);
+}
+
+/* =========================================================
+   MOBILE / TABLET
+   Sidebar -> Bottom Navigation
+========================================================= */
+
+@media (max-width: 1024px) {
+  /* =========================================
+     Bottom Navigation
+  ========================================= */
+
+  .sidebar {
+    position: fixed;
+
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+
+    width: 100%;
+    height: 82px;
+
+    min-height: 0;
+
+    padding: 8px 12px 7px;
+
+    display: block;
+
+    background: rgba(255, 255, 255, 0.96);
+
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+
+    border-top: 1px solid rgba(15, 23, 42, 0.07);
+
+    box-shadow: 0 -6px 25px rgba(15, 23, 42, 0.08);
+
+    z-index: 1500;
+  }
+
+  /* =========================================
+     Hide Desktop Elements
+  ========================================= */
+
+  .logo,
+  .divider,
+  .Menubottom,
+  .bottom-menus,
+  .profile-section {
+    display: none;
+  }
+
+  /* =========================================
+     Main Navigation
+  ========================================= */
+
+  .main-menus {
+    width: 100%;
+    height: 100%;
+
+    display: grid;
+
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+
+    align-items: center;
+
+    justify-items: center;
+
+    gap: 0;
+  }
+
+  /* =========================================
+     Each Navigation Item
+  ========================================= */
+
+  .main-menus .menu {
+    width: 100%;
+    height: 66px;
+
+    margin: 0;
+    padding: 5px 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 5px;
+
+    border: none;
+
+    border-radius: 14px;
+
+    background: transparent;
+
+    color: #64748b;
+
+    transform: none;
+
+    box-shadow: none;
+
+    overflow: visible;
+  }
+
+  .main-menus .menu:hover {
+    background: rgba(37, 99, 235, 0.05);
+
+    color: #2563eb;
+
+    transform: none;
+  }
+
+  /* =========================================
+     Icon
+  ========================================= */
+
+  .main-menus .menu svg {
+    width: 22px;
+    height: 22px;
+
+    stroke-width: 1.8;
+
+    flex-shrink: 0;
+  }
+
+  /* =========================================
+     Label
+  ========================================= */
+
+  .main-menus .menu span {
+    font-size: 10px;
+
+    line-height: 1;
+
+    font-weight: 500;
+
+    white-space: nowrap;
+  }
+
+  /* =========================================
+     Active
+  ========================================= */
+
+  .main-menus .menu.active {
+    background: transparent;
+
+    color: #2563eb;
+
+    border: none;
+
+    box-shadow: none;
+  }
+
+  .main-menus .menu.active::before {
+    display: none;
+  }
+
+  /* =========================================
+     REALTIME CENTER BUTTON
+  ========================================= */
+
+  .main-menus .menu:nth-child(3) {
+    width: 62px;
+    height: 62px;
+
+    margin-top: -27px;
+
+    padding: 0;
+
+    border-radius: 50%;
+
+    background: #2563eb;
+
+    color: #ffffff;
+
+    border: 5px solid #ffffff;
+
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+
+    gap: 2px;
+
+    z-index: 5;
+  }
+
+  .main-menus .menu:nth-child(3) svg {
+    width: 26px;
+    height: 26px;
+
+    stroke-width: 1.8;
+  }
+
+  .main-menus .menu:nth-child(3) span {
+    font-size: 8px;
+
+    font-weight: 600;
+
+    color: #ffffff;
+  }
+
+  .main-menus .menu:nth-child(3):hover {
+    background: #1d4ed8;
+
+    color: #ffffff;
+
+    transform: translateY(-2px);
+  }
+
+  .main-menus .menu:nth-child(3).active {
+    background: #2563eb;
+
+    color: #ffffff;
+
+    box-shadow: 0 7px 22px rgba(37, 99, 235, 0.35);
+  }
+}
+
+
+/* Macbook 13-14 นิ้ว */
+@media (max-width: 1600px){
+
+    .topbar{
+
+        left:250px;
+
+        right:20px;
+    }
+
+}
+
+/* Laptop */
+@media (max-width: 1200px){
+
+    .topbar{
+
+        left:220px;
+
+        right:15px;
+    }
+
+}
+
+/* Tablet */
+@media (max-width:1024px){
+
+    .topbar{
+
+        left:20px;
+
+        right:20px;
+
+        top:15px;
+
+        height:72px;
+
+        border-radius:16px;
+    }
+
+}
+
+/* =========================================
+   Tablet / Mobile
+========================================= */
+
+@media (max-width:1024px){
+
+  /* ซ่อน Topbar */
+  .topbar,
+  .top-divider{
+      display:none;
+  }
+
+  /* Sidebar เป็น Bottom Navigation */
+  .sidebar{
+      position:fixed;
+
+      left:0;
+      right:0;
+      bottom:0;
+
+      width:100%;
+      height:82px;
+
+      padding:8px 12px;
+
+      background:#fff;
+
+      border-top:1px solid #e5e7eb;
+
+      box-shadow:0 -6px 25px rgba(0,0,0,.08);
+
+      z-index:1500;
+  }
+
+}

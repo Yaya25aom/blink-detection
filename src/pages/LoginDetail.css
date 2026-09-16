@@ -1,0 +1,231 @@
+.login-page {
+  min-height: 100vh;
+
+  display: flex;
+
+  flex-direction: column;
+}
+
+/* Header */
+
+.login-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+
+  height: 82px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 0 60px;
+
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+  font-family: "Prompt", sans-serif;
+}
+
+.login-header h2 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  color: #0f33b9;
+  font-family: "JetBrains Mono", sans-serif;
+  font-style: italic;
+  letter-spacing: -0.5px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #555;
+}
+
+/* Body */
+
+.login-body {
+  min-height: calc(100vh - 82px);
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  max-width: 520px;
+
+  margin: auto;
+
+  padding: 0 20px;
+}
+
+.login-body h1 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 42px;
+  color: #454545;
+  font-weight: 700;
+  text-align: left;
+  margin-left: -10px;
+  font-family: 'Manrope', sans-serif;
+}
+
+.subtitle {
+  width: 100%;
+  text-align: left;
+  color: #8b8b8b;
+  font-size: 18px;
+  margin-bottom: 32px;
+  font-family: 'Ranade', sans-serif;
+  font-weight: 200;
+  margin-left: -5px;
+}
+
+.eye-logo {
+  display: flex;
+
+  justify-content: center;
+  align-items: center;
+
+  width: 100%;
+
+  font-size: 170px;
+  color: #5a83ff;
+
+  margin: 0 auto 30px;
+
+}
+
+.description {
+  color: #666;
+  font-size: 16px;
+  line-height: 1.7;
+  margin-top: 5px;
+  font-family: 'Manrope', sans-serif;
+  letter-spacing: 0.4px;
+}
+
+/* ปุ่ม Sign in */
+
+.sign-btn {
+  width: 100%;
+  height: 54px;
+
+  border: none;
+  border-radius: 18px;
+
+  background: #1a43ab;
+  color: white;
+
+  font-size: 17px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  margin-top: 20px;
+}
+
+.sign-btn:hover {
+  background: #666;
+}
+
+/* Divider */
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 20px;
+  margin-bottom: 30px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #ddd;
+}
+
+.divider span {
+  padding: 0 16px; /* ใช้ padding แทน margin */
+  background: #fff; /* กันเส้นลอดผ่าน */
+  color: #999;
+  flex-shrink: 0;
+}
+
+/* Google */
+
+.google-btn {
+  width: 100%;
+  height: 54px;
+
+  border: 1px solid #ddd;
+  border-radius: 18px;
+
+  background: white;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+
+  font-size: 16px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.google-btn:hover {
+  background: #f7f7f7;
+}
+
+.register-text {
+  margin-top: 30px;
+
+  color: #777;
+  font-family: "Prompt", sans-serif;
+}
+
+.register-link {
+  border: none;
+  background: none;
+
+  color: #3f7bff;
+  font-weight: 600;
+
+  cursor: pointer;
+  font-family: "Prompt", sans-serif;
+  font-size: 16px;
+  padding: 5px 10px;
+}
+
+@media (max-width: 1024px) {
+  .login-body {
+    padding-top: 90px;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-body {
+    padding-top: 95px;
+  }
+
+  .login-body h1 {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-body {
+    padding-top: 100px;
+
+    padding-inline: 20px;
+  }
+
+  .login-body h1 {
+    font-size: 30px;
+  }
+}
