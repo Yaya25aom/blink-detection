@@ -27,7 +27,9 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         FROM detection_service.detection_session
         WHERE user_id = $1
           AND ended_at IS NOT NULL
-          AND (started_at AT TIME ZONE 'Asia/Bangkok')::date = $2::date
+          AND (
+            started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok'
+          )::date = $2::date
         `,
         params,
       ),
@@ -43,7 +45,9 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         FROM detection_service.detection_session
         WHERE user_id = $1
           AND ended_at IS NOT NULL
-          AND (started_at AT TIME ZONE 'Asia/Bangkok')::date = $2::date
+          AND (
+            started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok'
+          )::date = $2::date
         ORDER BY started_at DESC
         `,
         params,
@@ -55,7 +59,9 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
           FROM detection_service.detection_session
           WHERE user_id = $1
             AND ended_at IS NOT NULL
-            AND (started_at AT TIME ZONE 'Asia/Bangkok')::date = $2::date
+            AND (
+              started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok'
+            )::date = $2::date
         ),
         hourly_duration AS (
           SELECT
@@ -83,7 +89,9 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
           GROUP BY date_trunc('hour', br.timestamp)
         )
         SELECT
-          EXTRACT(HOUR FROM hd.hour_start AT TIME ZONE 'Asia/Bangkok')::INTEGER AS hour,
+          EXTRACT(HOUR FROM (
+            hd.hour_start AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok'
+          ))::INTEGER AS hour,
           COALESCE(hb.total_blinks, 0)::INTEGER AS total_blinks,
           hd.duration_seconds::INTEGER AS duration_seconds,
           CASE WHEN hd.duration_seconds > 0
@@ -112,7 +120,9 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         JOIN detection_service.detection_session ds ON ds.session_id = abs.session_id
         WHERE ds.user_id = $1
           AND ds.ended_at IS NOT NULL
-          AND (ds.started_at AT TIME ZONE 'Asia/Bangkok')::date = $2::date
+          AND (
+            ds.started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok'
+          )::date = $2::date
         GROUP BY abs.app_name
         ORDER BY duration_seconds DESC, abs.app_name
         `,
@@ -134,7 +144,9 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
           AND ds.ended_at IS NOT NULL
           AND aus.duration_seconds > 0
           AND COALESCE(abs.average_blink_per_minute, 0) < $3
-          AND (ds.started_at AT TIME ZONE 'Asia/Bangkok')::date = $2::date
+          AND (
+            ds.started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok'
+          )::date = $2::date
         ORDER BY abs.average_blink_per_minute ASC, aus.duration_seconds DESC
         LIMIT 3
         `,
