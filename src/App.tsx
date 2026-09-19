@@ -7,6 +7,7 @@ import {
 
 import Sidebar from "./components/Sidebar";
 import Detection from "./pages/Detection";
+import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import VerifyOtp from "./pages/VerifyOtp";
 import LoginDetail from "./pages/LoginDetail";
@@ -35,6 +36,10 @@ function MainApp() {
 
         {page === "Realtime" && (
           <Detection />
+        )}
+
+        {page === "Dashboard" && (
+          <Dashboard />
         )}
 
       </main>

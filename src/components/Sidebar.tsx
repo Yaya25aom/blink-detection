@@ -153,7 +153,7 @@ export default function Sidebar({ current, onChange }: Props) {
 
           <h2>BlinkCare</h2>
           <div className="vertical-divider"></div>
-          <span className="page-title">Realtime Detection</span>
+          <span className="page-title">{current === "Realtime" ? "Realtime Detection" : current}</span>
         </div>
       </header>
       <div className="sidebar">
