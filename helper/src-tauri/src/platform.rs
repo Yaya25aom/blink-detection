@@ -48,7 +48,7 @@ pub fn get_frontmost_app() -> Option<String> {
 
   unsafe {
     let hwnd: HWND = GetForegroundWindow();
-    if hwnd.0 == 0 {
+    if hwnd.0.is_null() {
       return None;
     }
 
