@@ -32,7 +32,7 @@ function VerifyOtp() {
       }
 
       const response = await fetch(
-        "http://localhost:3000/api/auth/verify-otp",
+        "https://analyze-sail-fortune-pit.trycloudflare.com/api/auth/verify-otp",
         {
           method: "POST",
 
