@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crate::platform::get_frontmost_app;
 
-const DEFAULT_API_BASE_URL: &str = "https://reservation-spare-nominations-max.trycloudflare.com/api";
+const DEFAULT_API_BASE_URL: &str = "https://heat-salmon-christopher-solution.trycloudflare.com/api";
 
 #[derive(Debug, Deserialize)]
 struct SessionResponse {
