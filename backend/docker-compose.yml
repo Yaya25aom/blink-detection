@@ -4,6 +4,9 @@ services:
     container_name: blink-backend
     env_file:
       - .env.docker
+    environment:
+      NODE_ENV: development
+      DEV_FIXED_OTP: "000000"
     ports:
       - "3000:3000"
     restart: unless-stopped

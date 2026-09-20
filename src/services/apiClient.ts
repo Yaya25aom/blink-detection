@@ -1,4 +1,4 @@
-const API_URL = "https://detective-lottery-jump-champions.trycloudflare.com/api";
+const API_URL = "https://reservation-spare-nominations-max.trycloudflare.com/api";
 
 export const apiFetch = async (
   endpoint: string,

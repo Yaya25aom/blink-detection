@@ -3,9 +3,17 @@ import {pool} from "../config/database.js";
 import nodemailer from "nodemailer";
 
 export async function createOtp(userId: number, email: string) {
+  const fixedOtp =
+    process.env.NODE_ENV !== "production"
+      ? process.env.DEV_FIXED_OTP
+      : undefined;
 
-  // สร้าง OTP 6 หลัก
-  const otp = randomInt(100000, 1000000).toString();
+  if (fixedOtp && !/^\d{6}$/.test(fixedOtp)) {
+    throw new Error("DEV_FIXED_OTP must contain exactly 6 digits");
+  }
+
+  // Use a predictable code only in development; production always stays random.
+  const otp = fixedOtp ?? randomInt(100000, 1000000).toString();
 
   // เก็บ OTP ลง Database
   await pool.query(
@@ -29,8 +37,9 @@ export async function createOtp(userId: number, email: string) {
     [userId, otp]
   );
 
-  // ส่ง OTP ไป Email
-  await sendOtpEmail(email, otp);
+  if (!fixedOtp) {
+    await sendOtpEmail(email, otp);
+  }
 
   return true;
 }
