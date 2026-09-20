@@ -32,7 +32,7 @@ function VerifyOtp() {
       }
 
       const response = await fetch(
-        "https://analyze-sail-fortune-pit.trycloudflare.com/api/auth/verify-otp",
+        "https://api.blinkcare.website/api/auth/verify-otp",
         {
           method: "POST",
 

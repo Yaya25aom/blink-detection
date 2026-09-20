@@ -1,4 +1,4 @@
-const API_URL = "https://analyze-sail-fortune-pit.trycloudflare.com/api";
+const API_URL = "https://api.blinkcare.website/api";
 
 export const apiFetch = async (
   endpoint: string,

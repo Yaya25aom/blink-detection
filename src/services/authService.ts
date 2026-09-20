@@ -4,7 +4,7 @@ export async function login(
 ) {
 
   const response = await fetch(
-    "https://analyze-sail-fortune-pit.trycloudflare.com/api/auth/login",
+    "https://api.blinkcare.website/api/auth/login",
     {
       method: "POST",
       headers: {
@@ -26,7 +26,7 @@ export async function verifyOtp(
 ) {
 
   const response = await fetch(
-    "https://analyze-sail-fortune-pit.trycloudflare.com/api/auth/verify-otp",
+    "https://api.blinkcare.website/api/auth/verify-otp",
     {
       method: "POST",
       headers: {

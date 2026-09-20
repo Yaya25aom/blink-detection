@@ -111,7 +111,7 @@ export default function Sidebar({ current, onChange }: Props) {
     const refreshToken = localStorage.getItem("refreshToken");
 
     try {
-      const response = await fetch("http://localhost:3000/api/auth/logout", {
+      const response = await fetch("https://api.blinkcare.website/api/auth/logout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
