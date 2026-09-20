@@ -1,4 +1,4 @@
-const API_URL = "https://blank-wav-handbags-received.trycloudflare.com/api";
+const API_URL = "https://analyze-sail-fortune-pit.trycloudflare.com/api";
 
 export const apiFetch = async (
   endpoint: string,

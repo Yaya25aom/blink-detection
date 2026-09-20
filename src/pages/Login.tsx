@@ -18,7 +18,7 @@ function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch("https://blank-wav-handbags-received.trycloudflare.com/api/auth/login", {
+      const response = await fetch("https://analyze-sail-fortune-pit.trycloudflare.com/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
