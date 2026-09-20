@@ -8,6 +8,7 @@ import {
 import Sidebar from "./components/Sidebar";
 import Detection from "./pages/Detection";
 import Dashboard from "./pages/Dashboard";
+import Plan from "./pages/Plan";
 import Login from "./pages/Login";
 import VerifyOtp from "./pages/VerifyOtp";
 import LoginDetail from "./pages/LoginDetail";
@@ -40,6 +41,10 @@ function MainApp() {
 
         {page === "Dashboard" && (
           <Dashboard />
+        )}
+
+        {page === "Plan" && (
+          <Plan />
         )}
 
       </main>
