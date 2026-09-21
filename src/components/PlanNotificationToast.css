@@ -1,0 +1,46 @@
+.plan-notification-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2000;
+  width: min(390px, calc(100vw - 32px));
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  color: #1d2939;
+  background: #fff;
+  border: 1px solid #cdd7ed;
+  border-left: 4px solid #405fd0;
+  border-radius: 8px;
+  box-shadow: 0 16px 38px rgba(24, 39, 75, .2);
+  text-align: left;
+  animation: plan-toast-in .22s ease-out;
+}
+
+.toast-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #405fd0;
+  border-radius: 8px;
+  font-size: 21px;
+}
+
+.plan-notification-toast strong { display: block; font-size: 14px; }
+.plan-notification-toast p { margin-top: 4px; color: #667085; font-size: 12px; line-height: 1.45; }
+.plan-notification-toast button { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 5px; color: #667085; background: transparent; cursor: pointer; font-size: 18px; }
+.plan-notification-toast button:hover { background: #f1f4f9; }
+
+@keyframes plan-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 600px) {
+  .plan-notification-toast { right: 16px; bottom: 92px; }
+}

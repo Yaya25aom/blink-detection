@@ -7,6 +7,7 @@ import blinkRoutes from "./routes/blinkRoutes.js";
 import detectionRoutes from "./routes/detectionRoutes.js";
 import appUsageRoutes from "./routes/appUsageRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import planRoutes from "./routes/planRoutes.js";
 const app = express();
 
 app.use(cors());
@@ -32,5 +33,6 @@ app.use(
   appUsageRoutes
 );
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/plans", planRoutes);
 
 export default app;

@@ -1,4 +1,16 @@
-const API_URL = "https://api.blinkcare.website/api";
+export const API_URL = import.meta.env.VITE_API_URL ??
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:3000/api"
+    : "https://api.blinkcare.website/api");
+
+export const publicApiFetch = (endpoint: string, options: RequestInit = {}) =>
+  fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
 
 export const apiFetch = async (
   endpoint: string,

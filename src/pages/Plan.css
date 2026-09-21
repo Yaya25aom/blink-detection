@@ -87,7 +87,10 @@
 .secondary-action { color: #556176; background: #fff; border: 1px solid #d9dfe9; }
 .primary-action { color: #fff; background: #455fd2; border: 1px solid #455fd2; }
 .primary-action:disabled { cursor: not-allowed; opacity: .45; }
-.save-message { padding: 10px; color: #207858; background: #eaf7f1; border: 1px solid #bde4d2; border-radius: 6px; font-size: 10px; text-align: center; }
+.save-message { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; color: #207858; background: #eaf7f1; border: 1px solid #bde4d2; border-radius: 6px; font-size: 10px; }
+.save-message span { display: flex; align-items: center; gap: 6px; }
+.save-message button { padding: 7px 10px; color: #3159bd; border: 1px solid #b9c6ec; border-radius: 5px; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.save-message.error { color: #b42318; background: #fff1f0; border-color: #f2bbb6; }
 
 .plan-preview { position: sticky; top: 105px; padding: 17px; }
 .preview-title { display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid #e7eaf0; }

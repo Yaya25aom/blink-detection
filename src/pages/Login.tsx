@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
+import { publicApiFetch } from "../services/apiClient";
 
 function Login() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch("https://api.blinkcare.website/api/auth/login", {
+      const response = await publicApiFetch("/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -31,20 +32,9 @@ function Login() {
 
       const result = await response.json();
 
-      console.log("========== LOGIN DEBUG ==========");
-      console.log("Status:", response.status);
-      console.log("Request:", {
-        email: email.trim(),
-        password,
-      });
-      console.log("Response:", result);
-      console.log("=================================");
-
       if (!response.ok) {
         throw new Error(result.message || "Login failed");
       }
-
-      console.log("Login response:", result);
 
       /*
        * Backend ควรตอบประมาณ:

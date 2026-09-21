@@ -15,6 +15,10 @@ import { extractEyeLandmarks } from "../services/eyeExtractor";
 import { calculateAverageEAR } from "../services/earCalculator";
 
 import { BlinkDetector } from "../services/blinkDetector";
+import {
+  addDailyActiveSecond,
+  publishDetectionTelemetry,
+} from "../services/detectionTelemetry";
 import { LuMonitor, LuChrome, LuCode, LuGlobe } from "react-icons/lu";
 
 export default function Detection() {
@@ -87,6 +91,10 @@ export default function Detection() {
 
   // จำนวน blink ล่าสุดที่บันทึกลง database แล้ว
   const lastSavedBlinkCount = useRef(0);
+  const lastFaceSeenAt = useRef(0);
+  const presenceActiveSeconds = useRef(0);
+  const continuousPresenceSeconds = useRef(0);
+  const recentBlinkTimestamps = useRef<number[]>([]);
 
   // =====================================================
   // Detection Session ID
@@ -114,31 +122,63 @@ export default function Detection() {
     init();
   }, []);
 
-  // =====================================================
-  // Duration Timer
-  // =====================================================
-
+  // Count only time where a face is actually present. Reminder rules consume
+  // this stream instead of wall-clock time, so walking away pauses every plan.
   useEffect(() => {
-    if (!cameraOn || sessionStartTime.current === null) {
+    if (!cameraOn || !sessionActive) {
+      publishDetectionTelemetry({
+        sessionId: detectionId,
+        monitoring: false,
+        personPresent: false,
+        deltaActiveSeconds: 0,
+        sessionActiveSeconds: presenceActiveSeconds.current,
+        continuousActiveSeconds: 0,
+        dailyActiveSeconds: 0,
+        totalBlinks: sessionBlinkCount.current,
+        blinkRate: 0,
+        timestamp: Date.now(),
+      });
       return;
     }
 
-    const timer = setInterval(() => {
-      if (sessionStartTime.current === null) {
-        return;
+    const presenceTimer = window.setInterval(() => {
+      const personPresent = Date.now() - lastFaceSeenAt.current <= 3000;
+      let dailyActiveSeconds = 0;
+
+      if (personPresent) {
+        presenceActiveSeconds.current += 1;
+        continuousPresenceSeconds.current += 1;
+        dailyActiveSeconds = addDailyActiveSecond();
+      } else {
+        continuousPresenceSeconds.current = 0;
       }
 
-      const currentElapsed = Math.floor(
-        (Date.now() - sessionStartTime.current) / 1000,
+      const oneMinuteAgo = Date.now() - 60_000;
+      recentBlinkTimestamps.current = recentBlinkTimestamps.current.filter(
+        (timestamp) => timestamp >= oneMinuteAgo,
       );
-
-      setDuration(elapsedDuration.current + currentElapsed);
+      setDuration(presenceActiveSeconds.current);
+      setAverageBlinkPerMinute(
+        presenceActiveSeconds.current > 0
+          ? sessionBlinkCount.current / (presenceActiveSeconds.current / 60)
+          : 0,
+      );
+      publishDetectionTelemetry({
+        sessionId: detectionId,
+        monitoring: true,
+        personPresent,
+        deltaActiveSeconds: personPresent ? 1 : 0,
+        sessionActiveSeconds: presenceActiveSeconds.current,
+        continuousActiveSeconds: continuousPresenceSeconds.current,
+        dailyActiveSeconds,
+        totalBlinks: sessionBlinkCount.current,
+        blinkRate: recentBlinkTimestamps.current.length,
+        timestamp: Date.now(),
+      });
     }, 1000);
 
-    return () => {
-      clearInterval(timer);
-    };
-  }, [cameraOn]);
+    return () => window.clearInterval(presenceTimer);
+  }, [cameraOn, detectionId, sessionActive]);
 
   // =====================================================
   // Format Duration
@@ -159,7 +199,7 @@ export default function Detection() {
   // Calculate Blink Average
   // =====================================================
 
-  const getBlinkAverage = (totalSeconds: number) => {
+  const getBlinkAverage = useCallback((totalSeconds: number) => {
     if (totalSeconds <= 0) {
       return 0;
     }
@@ -169,9 +209,9 @@ export default function Detection() {
     const totalMinutes = totalSeconds / 60;
 
     return totalBlinks / totalMinutes;
-  };
+  }, []);
 
-  const calculateBlinkAverage = (totalSeconds: number) => {
+  const calculateBlinkAverage = useCallback((totalSeconds: number) => {
     const average = getBlinkAverage(totalSeconds);
 
     setAverageBlinkPerMinute(average);
@@ -181,7 +221,7 @@ export default function Detection() {
       totalSeconds,
       average,
     });
-  };
+  }, [getBlinkAverage]);
 
   // =====================================================
   // Start Detection Session
@@ -435,21 +475,15 @@ export default function Detection() {
     // ===================================================
 
     if (sessionStartTime.current !== null) {
-      const now = Date.now();
+      elapsedDuration.current = presenceActiveSeconds.current;
 
-      const currentElapsed = Math.floor(
-        (now - sessionStartTime.current) / 1000,
-      );
-
-      elapsedDuration.current += currentElapsed;
-
-      setDuration(elapsedDuration.current);
+      setDuration(presenceActiveSeconds.current);
 
       // =================================================
       // คำนวณ Average ตอน Pause
       // =================================================
 
-      calculateBlinkAverage(elapsedDuration.current);
+      calculateBlinkAverage(presenceActiveSeconds.current);
     }
 
     // =========================================
@@ -619,17 +653,7 @@ export default function Detection() {
     // หาค่าเวลาสุดท้าย
     // ===================================================
 
-    let finalDuration = elapsedDuration.current;
-
-    // ถ้าตอนกด End กำลังตรวจจับอยู่
-    // ต้องเอาช่วงล่าสุดมารวมด้วย
-    if (cameraOn && sessionStartTime.current !== null) {
-      const currentElapsed = Math.floor(
-        (Date.now() - sessionStartTime.current) / 1000,
-      );
-
-      finalDuration += currentElapsed;
-    }
+    const finalDuration = presenceActiveSeconds.current;
 
     // ===================================================
     // Update Duration
@@ -756,6 +780,7 @@ export default function Detection() {
       // =================================================
 
       if (result && result.faceLandmarks.length > 0) {
+        lastFaceSeenAt.current = Date.now();
         // ===============================================
         // Select Primary Face
         // ===============================================
@@ -799,6 +824,7 @@ export default function Detection() {
             // ===========================================
 
             sessionBlinkCount.current += 1;
+            recentBlinkTimestamps.current.push(Date.now());
 
             // ===========================================
             // Update Last Saved Blink
@@ -837,13 +863,7 @@ export default function Detection() {
             // คำนวณเวลาปัจจุบัน
             // ===========================================
 
-            let currentSeconds = elapsedDuration.current;
-
-            if (sessionStartTime.current !== null) {
-              currentSeconds += Math.floor(
-                (Date.now() - sessionStartTime.current) / 1000,
-              );
-            }
+            const currentSeconds = presenceActiveSeconds.current;
 
             // ===========================================
             // Update Average
@@ -874,7 +894,7 @@ export default function Detection() {
 
       cancelAnimationFrame(animationId);
     };
-  }, [cameraOn, videoRef, saveBlinkRecord]);
+  }, [cameraOn, videoRef, saveBlinkRecord, calculateBlinkAverage]);
 
   // =====================================================
   // UI
@@ -961,6 +981,10 @@ export default function Detection() {
               setBlinkCount(0);
 
               sessionBlinkCount.current = 0;
+              presenceActiveSeconds.current = 0;
+              continuousPresenceSeconds.current = 0;
+              lastFaceSeenAt.current = 0;
+              recentBlinkTimestamps.current = [];
               pendingCurrentAppBlinks.current = 0;
               currentAppRef.current = null;
 

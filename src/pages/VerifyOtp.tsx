@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./VerifyOtp.css";
+import { publicApiFetch } from "../services/apiClient";
+import { saveTokens } from "../utils/token";
 
 interface LocationState {
   user_id: number;
@@ -31,8 +33,8 @@ function VerifyOtp() {
         throw new Error("User information not found");
       }
 
-      const response = await fetch(
-        "https://api.blinkcare.website/api/auth/verify-otp",
+      const response = await publicApiFetch(
+        "/auth/verify-otp",
         {
           method: "POST",
 
@@ -82,16 +84,7 @@ function VerifyOtp() {
         );
       }
 
-      // เก็บ Token
-      localStorage.setItem(
-        "accessToken",
-        accessToken
-      );
-
-      localStorage.setItem(
-        "refreshToken",
-        refreshToken
-      );
+      saveTokens(accessToken, refreshToken);
 
       // ไปหน้า Dashboard
       navigate("/");

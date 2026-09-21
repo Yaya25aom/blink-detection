@@ -6,6 +6,8 @@ import {
 } from "react-router-dom";
 
 import Sidebar from "./components/Sidebar";
+import PlanReminder from "./components/PlanReminder";
+import PlanNotificationToast from "./components/PlanNotificationToast";
 import Detection from "./pages/Detection";
 import Dashboard from "./pages/Dashboard";
 import Plan from "./pages/Plan";
@@ -26,6 +28,9 @@ function MainApp() {
   return (
 
     <div className="container">
+
+      <PlanReminder />
+      <PlanNotificationToast />
 
       <Sidebar
         current={page}
