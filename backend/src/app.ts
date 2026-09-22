@@ -8,6 +8,7 @@ import detectionRoutes from "./routes/detectionRoutes.js";
 import appUsageRoutes from "./routes/appUsageRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
+import historyRoutes from "./routes/historyRoutes.js";
 const app = express();
 
 app.use(cors());
@@ -34,5 +35,6 @@ app.use(
 );
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/plans", planRoutes);
+app.use("/api/history", historyRoutes);
 
 export default app;

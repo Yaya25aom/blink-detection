@@ -1,3 +1,10 @@
+import {
+  addNotificationHistory,
+  isNotificationEnabled,
+  readNotificationSettings,
+  type NotificationCategory,
+} from "./notificationSettings";
+
 export type ActivePlanMeasure = {
   plan_measure_id: number;
   measure_code: string;
@@ -25,9 +32,24 @@ export const requestNotificationPermission = async () => {
   return Notification.requestPermission();
 };
 
-export const showPlanNotification = async (title: string, body: string) => {
+export type PlanNotificationDetail = {
+  title: string;
+  body: string;
+  reminderEventId?: number;
+  category: NotificationCategory;
+};
+
+export const showPlanNotification = async (
+  title: string,
+  body: string,
+  reminderEventId?: number,
+  category: NotificationCategory = "PLAN_REMINDER",
+) => {
+  if (!isNotificationEnabled(category)) return false;
+
+  addNotificationHistory(category, title, body);
   window.dispatchEvent(new CustomEvent("blinkcare:notification", {
-    detail: { title, body },
+    detail: { title, body, reminderEventId, category } satisfies PlanNotificationDetail,
   }));
 
   const permission = await requestNotificationPermission();
@@ -37,6 +59,7 @@ export const showPlanNotification = async (title: string, body: string) => {
     body,
     icon: "/favicon.svg",
     tag: "blinkcare-eye-health-reminder",
+    silent: readNotificationSettings().muted,
   });
   return true;
 };

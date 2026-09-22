@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 import {
   createPlan,
+  createReminderEvent,
   getActivePlan,
+  getUserPlans,
+  respondToReminderEvent,
   type PlanMeasureInput,
 } from "../services/planService.js";
 
@@ -57,6 +60,55 @@ export const createPlanController = async (req: Request, res: Response) => {
       success: false,
       message: error instanceof Error ? error.message : "Failed to save plan",
     });
+  }
+};
+
+export const createReminderEventController = async (req: Request, res: Response) => {
+  try {
+    const userId = Number(req.user?.user_id);
+    const planId = Number(req.body?.plan_id);
+    const planMeasureId = Number(req.body?.plan_measure_id);
+    if (![userId, planId, planMeasureId].every((value) => Number.isInteger(value) && value > 0)) {
+      return res.status(400).json({ success: false, message: "Invalid reminder data" });
+    }
+    const event = await createReminderEvent(userId, planId, planMeasureId);
+    if (!event) return res.status(404).json({ success: false, message: "Plan measure not found" });
+    return res.status(201).json({ success: true, data: event });
+  } catch (error) {
+    console.error("Create reminder event error:", error);
+    return res.status(500).json({ success: false, message: "Failed to record reminder" });
+  }
+};
+
+export const respondToReminderEventController = async (req: Request, res: Response) => {
+  try {
+    const userId = Number(req.user?.user_id);
+    const reminderEventId = Number(req.params.reminderEventId);
+    const status = req.body?.status as "COMPLETED" | "SKIPPED";
+    if (!Number.isInteger(userId) || !Number.isInteger(reminderEventId) || !["COMPLETED", "SKIPPED"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Invalid reminder response" });
+    }
+    const event = await respondToReminderEvent(userId, reminderEventId, status);
+    if (!event) return res.status(404).json({ success: false, message: "Pending reminder not found" });
+    return res.status(200).json({ success: true, data: event });
+  } catch (error) {
+    console.error("Respond reminder event error:", error);
+    return res.status(500).json({ success: false, message: "Failed to update reminder" });
+  }
+};
+
+export const getPlansController = async (req: Request, res: Response) => {
+  try {
+    const userId = Number(req.user?.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const plans = await getUserPlans(userId);
+    return res.status(200).json({ success: true, data: plans });
+  } catch (error) {
+    console.error("Get plans error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load plans" });
   }
 };
 

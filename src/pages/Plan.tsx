@@ -4,6 +4,7 @@ import { apiFetch } from "../services/apiClient";
 import { showPlanNotification } from "../services/planNotification";
 import {
   LuCalendarDays,
+  LuArrowLeft,
   LuCheck,
   LuClock3,
   LuDroplets,
@@ -164,7 +165,11 @@ const readStoredPlan = (): StoredPlan | null => {
   }
 };
 
-export default function Plan() {
+type PlanProps = {
+  onBack?: () => void;
+};
+
+export default function Plan({ onBack }: PlanProps) {
   const initialPlan = useMemo(() => readStoredPlan(), []);
   const [name, setName] = useState(initialPlan?.name || "แผนดูแลสุขภาพดวงตา");
   const [goalId, setGoalId] = useState(initialPlan?.goalId || goals[0].id);
@@ -281,6 +286,7 @@ export default function Plan() {
   return (
     <section className="plan-page">
       <div className="plan-heading">
+        {onBack && <button className="plan-back-button" onClick={onBack} title="กลับไปหน้าแผน"><LuArrowLeft /></button>}
         <div><span className="plan-eyebrow">PERSONAL EYE CARE</span><h1>สร้างแผนปรับปรุงสุขภาพตา</h1><p>เลือกเป้าหมายและมาตรการที่เหมาะกับพฤติกรรมการใช้หน้าจอของคุณ</p></div>
       </div>
 

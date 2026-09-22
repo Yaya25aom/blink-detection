@@ -33,8 +33,12 @@
 
 .plan-notification-toast strong { display: block; font-size: 14px; }
 .plan-notification-toast p { margin-top: 4px; color: #667085; font-size: 12px; line-height: 1.45; }
-.plan-notification-toast button { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 5px; color: #667085; background: transparent; cursor: pointer; font-size: 18px; }
-.plan-notification-toast button:hover { background: #f1f4f9; }
+.plan-notification-toast .toast-close { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 5px; color: #667085; background: transparent; cursor: pointer; font-size: 18px; }
+.plan-notification-toast .toast-close:hover { background: #f1f4f9; }
+.toast-actions { display: flex; gap: 7px; margin-top: 10px; }
+.toast-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 0 12px; border-radius: 5px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.toast-actions .toast-complete { border: 1px solid #16865a; color: #fff; background: #16865a; }
+.toast-actions .toast-skip { border: 1px solid #ccd5e3; color: #536078; background: #fff; }
 
 @keyframes plan-toast-in {
   from { opacity: 0; transform: translateY(12px); }

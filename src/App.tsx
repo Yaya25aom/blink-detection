@@ -8,12 +8,16 @@ import {
 import Sidebar from "./components/Sidebar";
 import PlanReminder from "./components/PlanReminder";
 import PlanNotificationToast from "./components/PlanNotificationToast";
+import DetectionHealthAlerts from "./components/DetectionHealthAlerts";
 import Detection from "./pages/Detection";
 import Dashboard from "./pages/Dashboard";
-import Plan from "./pages/Plan";
+import Overview from "./pages/Overview";
+import History from "./pages/History";
+import Plans from "./pages/Plans";
 import Login from "./pages/Login";
 import VerifyOtp from "./pages/VerifyOtp";
 import LoginDetail from "./pages/LoginDetail";
+import NotificationSettings from "./pages/NotificationSettings";
 
 import "./components/Sidebar.css";
 import "./App.css";
@@ -31,6 +35,7 @@ function MainApp() {
 
       <PlanReminder />
       <PlanNotificationToast />
+      <DetectionHealthAlerts />
 
       <Sidebar
         current={page}
@@ -39,6 +44,10 @@ function MainApp() {
 
 
       <main className="main">
+
+        {page === "Overview" && (
+          <Overview onNavigate={setPage} />
+        )}
 
         {page === "Realtime" && (
           <Detection />
@@ -49,7 +58,15 @@ function MainApp() {
         )}
 
         {page === "Plan" && (
-          <Plan />
+          <Plans />
+        )}
+
+        {page === "History" && (
+          <History />
+        )}
+
+        {page === "Notification" && (
+          <NotificationSettings />
         )}
 
       </main>

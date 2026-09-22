@@ -1,3 +1,5 @@
+import { getCurrentUserId } from "../utils/token";
+
 export type DetectionTelemetry = {
   sessionId: string | null;
   monitoring: boolean;
@@ -8,6 +10,7 @@ export type DetectionTelemetry = {
   dailyActiveSeconds: number;
   totalBlinks: number;
   blinkRate: number;
+  lightingLevel: "GOOD" | "DARK" | "UNKNOWN";
   timestamp: number;
 };
 
@@ -20,7 +23,7 @@ const localDateKey = () => {
 };
 
 export const addDailyActiveSecond = () => {
-  const key = `blinkCareActiveSeconds:${localDateKey()}`;
+  const key = `blinkCareActiveSeconds:${getCurrentUserId() ?? "guest"}:${localDateKey()}`;
   const nextValue = Number(localStorage.getItem(key) ?? 0) + 1;
   localStorage.setItem(key, String(nextValue));
   return nextValue;

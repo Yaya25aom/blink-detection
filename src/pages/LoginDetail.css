@@ -32,7 +32,7 @@
   font-size: 30px;
   font-weight: 700;
   color: #0f33b9;
-  font-family: "JetBrains Mono", sans-serif;
+  font-family: "Prompt Thai", "JetBrains Mono", sans-serif;
   font-style: italic;
   letter-spacing: -0.5px;
 }
@@ -70,7 +70,7 @@
   font-weight: 700;
   text-align: left;
   margin-left: -10px;
-  font-family: 'Manrope', sans-serif;
+  font-family: "Prompt Thai", 'Manrope', sans-serif;
 }
 
 .subtitle {
@@ -79,7 +79,7 @@
   color: #8b8b8b;
   font-size: 18px;
   margin-bottom: 32px;
-  font-family: 'Ranade', sans-serif;
+  font-family: "Prompt Thai", 'Ranade', sans-serif;
   font-weight: 200;
   margin-left: -5px;
 }
@@ -104,7 +104,7 @@
   font-size: 16px;
   line-height: 1.7;
   margin-top: 5px;
-  font-family: 'Manrope', sans-serif;
+  font-family: "Prompt Thai", 'Manrope', sans-serif;
   letter-spacing: 0.4px;
 }
 

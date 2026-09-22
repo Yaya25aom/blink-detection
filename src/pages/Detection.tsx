@@ -95,6 +95,7 @@ export default function Detection() {
   const presenceActiveSeconds = useRef(0);
   const continuousPresenceSeconds = useRef(0);
   const recentBlinkTimestamps = useRef<number[]>([]);
+  const lightCanvas = useRef<HTMLCanvasElement | null>(null);
 
   // =====================================================
   // Detection Session ID
@@ -136,6 +137,7 @@ export default function Detection() {
         dailyActiveSeconds: 0,
         totalBlinks: sessionBlinkCount.current,
         blinkRate: 0,
+        lightingLevel: "UNKNOWN",
         timestamp: Date.now(),
       });
       return;
@@ -143,7 +145,27 @@ export default function Detection() {
 
     const presenceTimer = window.setInterval(() => {
       const personPresent = Date.now() - lastFaceSeenAt.current <= 3000;
+      let lightingLevel: "GOOD" | "DARK" | "UNKNOWN" = "UNKNOWN";
       let dailyActiveSeconds = 0;
+
+      const video = videoRef.current;
+      if (video?.videoWidth && video.videoHeight) {
+        const canvas = lightCanvas.current ?? document.createElement("canvas");
+        lightCanvas.current = canvas;
+        canvas.width = 48;
+        canvas.height = 36;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (context) {
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+          let luminance = 0;
+          for (let index = 0; index < pixels.length; index += 4) {
+            luminance += pixels[index] * 0.2126 + pixels[index + 1] * 0.7152 + pixels[index + 2] * 0.0722;
+          }
+          const average = luminance / (pixels.length / 4);
+          lightingLevel = average < 42 ? "DARK" : "GOOD";
+        }
+      }
 
       if (personPresent) {
         presenceActiveSeconds.current += 1;
@@ -173,12 +195,13 @@ export default function Detection() {
         dailyActiveSeconds,
         totalBlinks: sessionBlinkCount.current,
         blinkRate: recentBlinkTimestamps.current.length,
+        lightingLevel,
         timestamp: Date.now(),
       });
     }, 1000);
 
     return () => window.clearInterval(presenceTimer);
-  }, [cameraOn, detectionId, sessionActive]);
+  }, [cameraOn, detectionId, sessionActive, videoRef]);
 
   // =====================================================
   // Format Duration

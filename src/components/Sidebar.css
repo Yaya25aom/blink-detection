@@ -5,16 +5,17 @@
 
     position: fixed;
 
+    top: 0;
 
-    left:clamp(220px,20vw,480px);
+    left: 200px;
 
-    right:20px;
+    right: 0;
 
     height:85px;
 
     background:#fff;
 
-    border-radius:18px;
+    border-radius: 0;
 
     display:flex;
 
@@ -22,7 +23,7 @@
 
     justify-content:space-between;
 
-    padding:0 30px;
+    padding: 0 60px;
 
     z-index:500;
 }
@@ -31,7 +32,7 @@
 
     left: 200px;      /* เท่าความกว้าง Sidebar */
     right: 0;
-    top: 80px;       /* ใต้ Topbar */
+    top: 84px;       /* ใต้ Topbar */
 
     height: 1px;
 
@@ -53,7 +54,7 @@
     flex-shrink:0;
 }
 .page-title{
-    font-family: 'Manrope', sans-serif;
+    font-family: "Prompt Thai", 'Manrope', sans-serif;
 
     font-size: 17.5px;
 
@@ -95,7 +96,7 @@
   font-weight: 500;
 
   color: #111827;
-  font-family: "JetBrains Mono", sans-serif;
+  font-family: "Prompt Thai", "JetBrains Mono", sans-serif;
   font-style: italic;
   letter-spacing: -0.5px;
 }
@@ -213,7 +214,7 @@
 
   overflow: hidden;
 
-  font-family: 'Manrope', sans-serif;
+  font-family: "Prompt Thai", 'Manrope', sans-serif;
   font-weight: 800;
   letter-spacing: 0.5px;
 }
@@ -524,7 +525,7 @@
 
   color: #fff;
 
-  font-family: "Noto Sans Thai", sans-serif;
+  font-family: "Prompt Thai", "Noto Sans Thai", sans-serif;
 
   font-size: 16px;
 
@@ -570,7 +571,7 @@
 
   color: #374151;
 
-  font-family: "Noto Sans Thai", sans-serif;
+  font-family: "Prompt Thai", "Noto Sans Thai", sans-serif;
 
   font-size: 16px;
 
@@ -821,9 +822,11 @@
 
     .topbar{
 
-        left:250px;
+        left: 200px;
 
-        right:20px;
+        right: 0;
+
+        padding: 0 48px;
     }
 
 }
@@ -833,9 +836,11 @@
 
     .topbar{
 
-        left:220px;
+        left: 200px;
 
-        right:15px;
+        right: 0;
+
+        padding: 0 36px;
     }
 
 }

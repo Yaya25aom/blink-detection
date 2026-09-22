@@ -10,6 +10,59 @@
   box-sizing: border-box;
 }
 
+@font-face {
+  font-family: "Prompt Thai";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/prompt/v12/-W_8XJnvUD7dzB2Cy_g4bg.ttf") format("truetype");
+  unicode-range: U+0E00-0E7F;
+}
+
+@font-face {
+  font-family: "Prompt Thai";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/prompt/v12/-W__XJnvUD7dzB26Zw.ttf") format("truetype");
+  unicode-range: U+0E00-0E7F;
+}
+
+@font-face {
+  font-family: "Prompt Thai";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/prompt/v12/-W_8XJnvUD7dzB2Ck_k4bg.ttf") format("truetype");
+  unicode-range: U+0E00-0E7F;
+}
+
+@font-face {
+  font-family: "Prompt Thai";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/prompt/v12/-W_8XJnvUD7dzB2Cv_44bg.ttf") format("truetype");
+  unicode-range: U+0E00-0E7F;
+}
+
+@font-face {
+  font-family: "Prompt Thai";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/prompt/v12/-W_8XJnvUD7dzB2C2_84bg.ttf") format("truetype");
+  unicode-range: U+0E00-0E7F;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: "Prompt Thai", system-ui, "Segoe UI", sans-serif;
+}
+
 html,
 body,
 #root {

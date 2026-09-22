@@ -9,6 +9,7 @@ import {
   DETECTION_TELEMETRY_EVENT,
   type DetectionTelemetry,
 } from "../services/detectionTelemetry";
+import { getCurrentUserId } from "../utils/token";
 
 const PLAN_REFRESH_MS = 5 * 60 * 1000;
 
@@ -51,14 +52,34 @@ export default function PlanReminder() {
       }
     };
 
-    const notify = (measure: ActivePlanMeasure) => {
+    const notify = async (measure: ActivePlanMeasure) => {
       if (!activePlan) return;
       const copy = notificationCopy(measure, activePlan.plan_name);
-      void showPlanNotification(copy.title, `${copy.body} · ${activePlan.plan_name}`);
+      let reminderEventId: number | undefined;
+      try {
+        const response = await apiFetch("/plans/reminders", {
+          method: "POST",
+          body: JSON.stringify({
+            plan_id: activePlan.plan_id,
+            plan_measure_id: measure.plan_measure_id,
+          }),
+        });
+        if (response.ok) {
+          const result = await response.json();
+          reminderEventId = Number(result.data.reminder_event_id);
+        }
+      } catch (error) {
+        console.error("Unable to record plan reminder:", error);
+      }
+      void showPlanNotification(
+        copy.title,
+        `${copy.body} · ${activePlan.plan_name}`,
+        reminderEventId,
+      );
     };
 
     const handleTelemetry = (event: Event) => {
-      if (!activePlan) return;
+      if (!activePlan || !getCurrentUserId()) return;
       const telemetry = (event as CustomEvent<DetectionTelemetry>).detail;
 
       for (const measure of activePlan.measures) {
@@ -76,7 +97,7 @@ export default function PlanReminder() {
           const alertedKey = `${keyBase}:daily:${dateKey}`;
           if (targetSeconds > 0 && telemetry.dailyActiveSeconds >= targetSeconds && !localStorage.getItem(alertedKey)) {
             localStorage.setItem(alertedKey, "true");
-            notify(measure);
+            void notify(measure);
           }
           continue;
         }
@@ -96,7 +117,7 @@ export default function PlanReminder() {
             !localStorage.getItem(triggeredKey)
           ) {
             localStorage.setItem(triggeredKey, "true");
-            notify(measure);
+            void notify(measure);
           }
           continue;
         }
@@ -106,7 +127,7 @@ export default function PlanReminder() {
           const progress = Number(localStorage.getItem(progressKey) ?? 0) + telemetry.deltaActiveSeconds;
           if (progress >= thresholdSeconds) {
             localStorage.setItem(progressKey, String(progress % thresholdSeconds));
-            notify(measure);
+            void notify(measure);
           } else {
             localStorage.setItem(progressKey, String(progress));
           }
