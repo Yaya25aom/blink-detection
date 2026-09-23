@@ -1,6 +1,6 @@
 import "./LoginDetail.css";
 
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { RiCloseLine } from "react-icons/ri";
 import { FcGoogle } from "react-icons/fc";
@@ -8,13 +8,15 @@ import { FaEye } from "react-icons/fa";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/";
 
   const handleClose = () => {
     navigate("/");
   };
 
   const handleSignIn = () => {
-    navigate("/auth");
+    navigate("/login", { replace: true, state: { returnTo } });
   };
 
   const handleGoogleLogin = () => {
@@ -22,7 +24,7 @@ export default function Login() {
   };
 
   const handleRegister = () => {
-    navigate("/register");
+    navigate("/login", { replace: true, state: { returnTo } });
   };
 
   return (

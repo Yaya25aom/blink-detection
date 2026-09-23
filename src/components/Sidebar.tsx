@@ -89,8 +89,7 @@ export default function Sidebar({ current, onChange }: Props) {
 
   const handleLogin = () => {
     setShowProfileMenu(false);
-
-    navigate("/login");
+    navigate("/auth");
   };
 
   // ==========================
@@ -99,8 +98,7 @@ export default function Sidebar({ current, onChange }: Props) {
 
   const handleRegister = () => {
     setShowProfileMenu(false);
-
-    navigate("/register");
+    navigate("/auth");
   };
 
   // ==========================

@@ -1,8 +1,10 @@
-import { useState } from "react";
 import {
   BrowserRouter,
+  Navigate,
   Routes,
   Route,
+  useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import Sidebar from "./components/Sidebar";
@@ -27,9 +29,33 @@ import "./App.css";
 
 
 function MainApp() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isLoggedIn = Boolean(localStorage.getItem("accessToken"));
+  const routes: Record<string, string> = {
+    Overview: "/",
+    Dashboard: "/dashboard",
+    Realtime: "/realtime",
+    Plan: "/plans",
+    History: "/history",
+    Notification: "/notifications",
+    "Connecting Device": "/devices",
+  };
+  const pagesByPath = Object.fromEntries(Object.entries(routes).map(([page, path]) => [path, page]));
+  const page = pagesByPath[location.pathname] ?? "Overview";
 
-  const [page, setPage] =
-    useState("Overview");
+  if (!isLoggedIn && location.pathname !== "/") {
+    return <Navigate to="/auth" replace state={{ returnTo: location.pathname }} />;
+  }
+
+  const changePage = (nextPage: string) => {
+    if (!isLoggedIn && nextPage !== "Overview") {
+      navigate("/auth", { state: { returnTo: routes[nextPage] ?? "/" } });
+      return;
+    }
+    const target = routes[nextPage];
+    if (target) navigate(target);
+  };
 
 
   return (
@@ -42,14 +68,14 @@ function MainApp() {
 
       <Sidebar
         current={page}
-        onChange={setPage}
+        onChange={changePage}
       />
 
 
       <main className="main">
 
         {page === "Overview" && (
-          <Overview onNavigate={setPage} />
+          <Overview onNavigate={changePage} />
         )}
 
         {page === "Realtime" && (
@@ -95,7 +121,7 @@ function App() {
         {/* Main App */}
 
         <Route
-          path="/"
+          path="/*"
           element={<MainApp />}
         />
 

@@ -7,6 +7,7 @@ import { saveTokens } from "../utils/token";
 interface LocationState {
   user_id: number;
   email: string;
+  returnTo?: string;
 }
 
 function VerifyOtp() {
@@ -87,7 +88,7 @@ function VerifyOtp() {
       saveTokens(accessToken, refreshToken);
 
       // ไปหน้า Dashboard
-      navigate("/");
+      navigate(state.returnTo ?? "/", { replace: true });
 
     } catch (error) {
       if (error instanceof Error) {
@@ -113,7 +114,7 @@ function VerifyOtp() {
           </p>
 
           <button
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/login", { replace: true })}
           >
             Back to Login
           </button>
@@ -179,7 +180,7 @@ function VerifyOtp() {
 
         <button
           className="back-button"
-          onClick={() => navigate("/login")}
+          onClick={() => navigate("/login", { replace: true })}
         >
           Back to Login
         </button>

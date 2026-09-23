@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "./Login.css";
 import { publicApiFetch } from "../services/apiClient";
 import { saveTokens } from "../utils/token";
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,14 +54,16 @@ function Login() {
 
       if (result.data?.requiresOtp) {
         navigate("/verify-otp", {
+          replace: true,
           state: {
             user_id: result.data.user_id,
             email: email,
+            returnTo,
           },
         });
       } else if (result.data?.accessToken && result.data?.refreshToken) {
         saveTokens(result.data.accessToken, result.data.refreshToken);
-        navigate("/");
+        navigate(returnTo, { replace: true });
       } else {
         throw new Error("Login tokens were not returned from server");
       }
