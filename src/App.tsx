@@ -20,6 +20,7 @@ import LoginDetail from "./pages/LoginDetail";
 import NotificationSettings from "./pages/NotificationSettings";
 import Support from "./pages/Support";
 import Privacy from "./pages/Privacy";
+import ConnectingDevice from "./pages/ConnectingDevice";
 
 import "./components/Sidebar.css";
 import "./App.css";
@@ -69,6 +70,10 @@ function MainApp() {
 
         {page === "Notification" && (
           <NotificationSettings />
+        )}
+
+        {page === "Connecting Device" && (
+          <ConnectingDevice />
         )}
 
       </main>

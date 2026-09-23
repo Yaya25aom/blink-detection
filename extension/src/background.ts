@@ -45,6 +45,7 @@ type ExtensionMessage =
   | { type: "BLINKCARE_OPEN_LOGIN" }
   | { type: "BLINKCARE_PLAN_UPDATED" }
   | { type: "BLINKCARE_GET_NOTIFICATION_HISTORY" }
+  | { type: "BLINKCARE_GET_DEVICE_STATUS" }
   | { type: "BLINKCARE_AUTH_SYNC"; accessToken: string; refreshToken: string; apiBaseUrl: string; webBaseUrl: string; notificationSettings?: NotificationSettings }
   | { type: "BLINKCARE_AUTH_CLEAR"; apiBaseUrl: string; webBaseUrl: string };
 
@@ -56,7 +57,6 @@ let lastPlanLoadedAt = 0;
 let previousActiveSeconds = 0;
 let continuousActiveSeconds = 0;
 let lastHelperPollAt = 0;
-const lastAlertAt = new Map<string, number>();
 
 const enqueueAuthOperation = (operation: () => Promise<void>) => {
   authOperation = authOperation.then(operation, operation);
@@ -573,6 +573,27 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         ok: false,
         error: error instanceof Error ? error.message : String(error),
       }));
+    return true;
+  }
+
+  if (message.type === "BLINKCARE_GET_DEVICE_STATUS") {
+    void chrome.storage.local.get([
+      "blinkcareAuthenticatedUserId",
+      "blinkcareHelperConnected",
+      "blinkcareActiveApp",
+      "blinkcareMonitoring",
+    ]).then((stored) => sendResponse({
+      ok: true,
+      installed: true,
+      connected: stored.blinkcareAuthenticatedUserId !== undefined,
+      helperConnected: stored.blinkcareHelperConnected === true,
+      activeApp: typeof stored.blinkcareActiveApp === "string" ? stored.blinkcareActiveApp : null,
+      monitoring: stored.blinkcareMonitoring === true,
+      version: chrome.runtime.getManifest().version,
+    })).catch((error: unknown) => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }));
     return true;
   }
 

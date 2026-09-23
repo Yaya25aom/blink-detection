@@ -79,3 +79,17 @@ window.addEventListener("blinkcare:plan-updated", () => {
 setInterval(syncAuth, 1_500);
 void syncNotificationHistory();
 setInterval(() => void syncNotificationHistory(), 2_000);
+
+window.addEventListener("blinkcare:device-status-request", () => {
+  void chrome.runtime.sendMessage({ type: "BLINKCARE_GET_DEVICE_STATUS" })
+    .then((status) => {
+      window.dispatchEvent(new CustomEvent("blinkcare:device-status-response", {
+        detail: status,
+      }));
+    })
+    .catch(() => {
+      window.dispatchEvent(new CustomEvent("blinkcare:device-status-response", {
+        detail: { ok: false, installed: true },
+      }));
+    });
+});
