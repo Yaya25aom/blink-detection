@@ -530,7 +530,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
   if (message.type === "BLINKCARE_OPEN_LOGIN") {
     void chrome.storage.local.get("blinkcareWebBaseUrl")
       .then((stored) => chrome.tabs.create({
-        url: `${stored.blinkcareWebBaseUrl || "https://blinkcare.website"}/login`,
+        url: `${stored.blinkcareWebBaseUrl || "https://blink-detection-two.vercel.app"}/login`,
       }))
       .then(() => sendResponse({ ok: true }));
     return true;

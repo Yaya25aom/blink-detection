@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BlinkCare Monitor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ตรวจจับการกะพริบตาและแจ้งเตือนให้ดูแลสุขภาพตาระหว่างใช้งานหน้าจอ",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -13,6 +13,7 @@
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*",
+    "https://blink-detection-two.vercel.app/*",
     "https://blinkcare.website/*",
     "https://www.blinkcare.website/*",
     "https://api.blinkcare.website/*"
@@ -22,6 +23,7 @@
       "matches": [
         "http://localhost/*",
         "http://127.0.0.1/*",
+        "https://blink-detection-two.vercel.app/*",
         "https://blinkcare.website/*",
         "https://www.blinkcare.website/*"
       ],

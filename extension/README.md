@@ -17,3 +17,12 @@ npm run build
 
 The badge displays `ON` while monitoring. Camera frames stay on the device and
 are used only by the offscreen detection document.
+
+## Production
+
+The extension syncs the signed-in account from either
+`https://blink-detection-two.vercel.app` or `https://blinkcare.website`, then
+uses `https://api.blinkcare.website/api` for detection sessions, blink records,
+plans, and notification events. Blink Helper remains local at
+`http://127.0.0.1:17321` so the active desktop application never passes through
+a public bridge.
