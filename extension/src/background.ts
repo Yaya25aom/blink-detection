@@ -1,4 +1,5 @@
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen/offscreen.html";
+const PRODUCTION_WEB_BASE_URL = "https://blink-detection-two.vercel.app";
 
 type ExtensionAuth = {
   accessToken: string;
@@ -528,10 +529,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
   }
 
   if (message.type === "BLINKCARE_OPEN_LOGIN") {
-    void chrome.storage.local.get("blinkcareWebBaseUrl")
-      .then((stored) => chrome.tabs.create({
-        url: `${stored.blinkcareWebBaseUrl || "https://blink-detection-two.vercel.app"}/login`,
-      }))
+    void chrome.tabs.create({ url: `${PRODUCTION_WEB_BASE_URL}/login` })
       .then(() => sendResponse({ ok: true }));
     return true;
   }
