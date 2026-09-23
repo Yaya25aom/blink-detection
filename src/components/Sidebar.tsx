@@ -193,15 +193,21 @@ export default function Sidebar({ current, onChange }: Props) {
 
         <div className="main-menus">
           {menus.map((menu) => (
-            <button
-              key={menu.name}
-              className={current === menu.name ? "menu active" : "menu"}
-              onClick={() => onChange(menu.name)}
-            >
-              {menu.icon}
-
-              <span>{menu.name}</span>
-            </button>
+            <div className="menu-group" key={menu.name}>
+              <button
+                className={current === menu.name || (menu.name === "Dashboard" && current === "Multi-day Dashboard") ? "menu active" : "menu"}
+                onClick={() => onChange(menu.name)}
+              >
+                {menu.icon}
+                <span>{menu.name}</span>
+              </button>
+              {menu.name === "Dashboard" && (
+                <div className="dashboard-submenus">
+                  <button className={current === "Dashboard" ? "active" : ""} onClick={() => onChange("Dashboard")}>ภาพรวมรายวัน</button>
+                  <button className={current === "Multi-day Dashboard" ? "active" : ""} onClick={() => onChange("Multi-day Dashboard")}>ภาพรวมหลายวัน</button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
 

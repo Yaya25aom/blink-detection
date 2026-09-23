@@ -13,6 +13,7 @@ import PlanNotificationToast from "./components/PlanNotificationToast";
 import DetectionHealthAlerts from "./components/DetectionHealthAlerts";
 import Detection from "./pages/Detection";
 import Dashboard from "./pages/Dashboard";
+import MultiDayDashboard from "./pages/MultiDayDashboard";
 import Overview from "./pages/Overview";
 import History from "./pages/History";
 import Plans from "./pages/Plans";
@@ -37,6 +38,7 @@ function MainApp() {
   const routes: Record<string, string> = {
     Overview: "/",
     Dashboard: "/dashboard",
+    "Multi-day Dashboard": "/dashboard/multi-day",
     Realtime: "/realtime",
     Plan: "/plans",
     History: "/history",
@@ -86,6 +88,10 @@ function MainApp() {
 
         {page === "Dashboard" && (
           <Dashboard />
+        )}
+
+        {page === "Multi-day Dashboard" && (
+          <MultiDayDashboard />
         )}
 
         {page === "Plan" && (

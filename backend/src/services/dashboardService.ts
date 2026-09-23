@@ -3,6 +3,131 @@ import { pool } from "../config/database.js";
 const NORMAL_BLINK_MIN = 12;
 const NORMAL_BLINK_MAX = 20;
 
+const clampScore = (value: number) => Math.max(0, Math.min(100, value));
+
+const scoreDay = (row: Record<string, unknown>) => {
+  const sessions = Number(row.session_count ?? 0);
+  if (sessions === 0) return null;
+  const duration = Number(row.total_duration_seconds ?? 0);
+  const blinks = Number(row.total_blinks ?? 0);
+  const blinkRate = duration > 0 ? blinks / (duration / 60) : 0;
+  const lowSessions = Number(row.low_session_count ?? 0);
+  const maxContinuousMinutes = Number(row.max_continuous_seconds ?? 0) / 60;
+  const reminderCount = Number(row.reminder_count ?? 0);
+  const completedReminders = Number(row.completed_reminders ?? 0);
+  const lowDuration = Number(row.low_duration_seconds ?? 0);
+
+  const rateScore = clampScore(((blinkRate - 6) / 6) * 100);
+  const blinkHealth = clampScore(rateScore * 0.7 + (1 - lowSessions / sessions) * 100 * 0.3);
+  const continuousUse = clampScore(100 - Math.max(0, maxContinuousMinutes - 30) / 60 * 100);
+  const breakBehavior = reminderCount > 0 ? clampScore(completedReminders / reminderCount * 100) : 70;
+  const riskExposure = duration > 0 ? clampScore(100 - lowDuration / duration * 100) : 0;
+  const eyeHealthScore = Math.round(
+    blinkHealth * 0.4 + continuousUse * 0.25 + breakBehavior * 0.2 + riskExposure * 0.15,
+  );
+  return {
+    blink_rate: blinkRate,
+    max_continuous_minutes: maxContinuousMinutes,
+    blink_health: Math.round(blinkHealth),
+    continuous_use: Math.round(continuousUse),
+    break_behavior: Math.round(breakBehavior),
+    risk_exposure: Math.round(riskExposure),
+    eye_health_score: eyeHealthScore,
+  };
+};
+
+const getMultiDayRows = async (userId: string, from: string, to: string) => {
+  const result = await pool.query(
+    `
+    WITH session_daily AS (
+      SELECT
+        (((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date)::text AS local_date,
+        COUNT(*)::INTEGER AS session_count,
+        COALESCE(SUM(total_blinks), 0)::INTEGER AS total_blinks,
+        COALESCE(SUM(duration_seconds), 0)::INTEGER AS total_duration_seconds,
+        COALESCE(MAX(duration_seconds), 0)::INTEGER AS max_continuous_seconds,
+        COUNT(*) FILTER (WHERE average_blinks_per_minute < 12)::INTEGER AS low_session_count,
+        COALESCE(SUM(duration_seconds) FILTER (WHERE average_blinks_per_minute < 12), 0)::INTEGER AS low_duration_seconds
+      FROM detection_service.detection_session
+      WHERE user_id = $1 AND ended_at IS NOT NULL
+        AND ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date BETWEEN $2::date AND $3::date
+      GROUP BY ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date
+    ), reminder_daily AS (
+      SELECT
+        (timezone('Asia/Bangkok', triggered_at)::date)::text AS local_date,
+        COUNT(*)::INTEGER AS reminder_count,
+        COUNT(*) FILTER (WHERE status = 'COMPLETED')::INTEGER AS completed_reminders
+      FROM plan_service.plan_reminder_event
+      WHERE user_id = $1
+        AND timezone('Asia/Bangkok', triggered_at)::date BETWEEN $2::date AND $3::date
+      GROUP BY timezone('Asia/Bangkok', triggered_at)::date
+    )
+    SELECT sd.*, COALESCE(rd.reminder_count, 0)::INTEGER AS reminder_count,
+      COALESCE(rd.completed_reminders, 0)::INTEGER AS completed_reminders
+    FROM session_daily sd LEFT JOIN reminder_daily rd USING (local_date)
+    ORDER BY sd.local_date
+    `,
+    [userId, from, to],
+  );
+  return result.rows;
+};
+
+export const getMultiDayDashboard = async (userId: string, from: string, to: string) => {
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const previousToDate = new Date(start.getTime() - 86_400_000);
+  const previousFromDate = new Date(previousToDate.getTime() - (days - 1) * 86_400_000);
+  const previousFrom = previousFromDate.toISOString().slice(0, 10);
+  const previousTo = previousToDate.toISOString().slice(0, 10);
+  const [rows, previousRows, riskHoursResult] = await Promise.all([
+    getMultiDayRows(userId, from, to),
+    getMultiDayRows(userId, previousFrom, previousTo),
+    pool.query(
+      `SELECT EXTRACT(HOUR FROM ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok'))::INTEGER AS hour,
+        COALESCE(SUM(duration_seconds), 0)::INTEGER AS duration_seconds,
+        COUNT(*)::INTEGER AS occurrences
+       FROM detection_service.detection_session
+       WHERE user_id = $1 AND ended_at IS NOT NULL AND average_blinks_per_minute < 12
+         AND ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date BETWEEN $2::date AND $3::date
+       GROUP BY EXTRACT(HOUR FROM ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok'))
+       ORDER BY duration_seconds DESC LIMIT 3`,
+      [userId, from, to],
+    ),
+  ]);
+
+  const buildDays = (source: Record<string, unknown>[]) => source.map((row) => ({ ...row, ...scoreDay(row) }));
+  const daily = buildDays(rows);
+  const previousDaily = buildDays(previousRows);
+  const average = (items: Record<string, unknown>[], key: string) => items.length
+    ? items.reduce((sum, item) => sum + Number(item[key] ?? 0), 0) / items.length
+    : 0;
+  const summarize = (items: Record<string, unknown>[]) => ({
+    eye_health_score: average(items, "eye_health_score"),
+    blink_rate: items.reduce((sum, item) => sum + Number(item.total_blinks ?? 0), 0) /
+      Math.max(1, items.reduce((sum, item) => sum + Number(item.total_duration_seconds ?? 0), 0) / 60),
+    average_screen_seconds: average(items, "total_duration_seconds"),
+    risk_days: items.filter((item) => Number(item.eye_health_score ?? 0) < 60).length,
+    break_behavior: average(items, "break_behavior"),
+  });
+  const summary = summarize(daily);
+  const previous = summarize(previousDaily);
+  return {
+    from, to, previous_from: previousFrom, previous_to: previousTo,
+    summary, previous,
+    factors: {
+      blink_health: average(daily, "blink_health"),
+      continuous_use: average(daily, "continuous_use"),
+      break_behavior: average(daily, "break_behavior"),
+      risk_exposure: average(daily, "risk_exposure"),
+    },
+    daily,
+    risk_hours: riskHoursResult.rows.map((row) => ({
+      hour: Number(row.hour), duration_minutes: Math.round(Number(row.duration_seconds) / 60), occurrences: Number(row.occurrences),
+    })),
+  };
+};
+
 export const getDashboardSummary = async (userId: string, date?: string) => {
   const selectedDate = date ?? new Date().toISOString().slice(0, 10);
   const params = [userId, selectedDate];
