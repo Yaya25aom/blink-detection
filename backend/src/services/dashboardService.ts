@@ -96,7 +96,8 @@ export const getMultiDayDashboard = async (userId: string, from: string, to: str
     ),
   ]);
 
-  const buildDays = (source: Record<string, unknown>[]) => source.map((row) => ({ ...row, ...scoreDay(row) }));
+  const buildDays = (source: Record<string, unknown>[]): Array<Record<string, unknown>> =>
+    source.map((row) => ({ ...row, ...(scoreDay(row) ?? {}) }));
   const daily = buildDays(rows);
   const previousDaily = buildDays(previousRows);
   const average = (items: Record<string, unknown>[], key: string) => items.length
@@ -112,9 +113,13 @@ export const getMultiDayDashboard = async (userId: string, from: string, to: str
   });
   const summary = summarize(daily);
   const previous = summarize(previousDaily);
+  const percentChange = (current: number, prior: number) => prior > 0 ? (current - prior) / prior * 100 : null;
+  const completedReminders = daily.reduce((sum, item) => sum + Number(item.completed_reminders ?? 0), 0);
+  const reminderCount = daily.reduce((sum, item) => sum + Number(item.reminder_count ?? 0), 0);
   return {
     from, to, previous_from: previousFrom, previous_to: previousTo,
     summary, previous,
+    previous_daily: previousDaily,
     factors: {
       blink_health: average(daily, "blink_health"),
       continuous_use: average(daily, "continuous_use"),
@@ -125,6 +130,14 @@ export const getMultiDayDashboard = async (userId: string, from: string, to: str
     risk_hours: riskHoursResult.rows.map((row) => ({
       hour: Number(row.hour), duration_minutes: Math.round(Number(row.duration_seconds) / 60), occurrences: Number(row.occurrences),
     })),
+    plan_results: {
+      blink_rate_change_percent: percentChange(summary.blink_rate, previous.blink_rate),
+      screen_time_change_percent: percentChange(summary.average_screen_seconds, previous.average_screen_seconds),
+      risk_days_change: summary.risk_days - previous.risk_days,
+      completed_reminders: completedReminders,
+      reminder_count: reminderCount,
+      adherence_percent: reminderCount > 0 ? completedReminders / reminderCount * 100 : 0,
+    },
   };
 };
 

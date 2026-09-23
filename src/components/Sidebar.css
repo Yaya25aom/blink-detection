@@ -188,7 +188,7 @@
 }
 .menu-group { width: 100%; }
 .dashboard-submenus { margin: -2px 0 7px 21px; padding-left: 15px; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid rgba(58, 77, 110, .2); }
-.dashboard-submenus button { position: relative; padding: 6px 8px; border: 0; background: transparent; color: #677186; text-align: left; font: inherit; font-size: 10px; cursor: pointer; }
+.dashboard-submenus button { position: relative; padding: 8px 8px; border: 0; background: transparent; color: #59657b; text-align: left; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
 .dashboard-submenus button::before { content: ""; position: absolute; left: -19px; top: 50%; width: 6px; height: 6px; border-radius: 50%; background: #a9b2c1; transform: translateY(-50%); }
 .dashboard-submenus button.active { color: #285ed4; font-weight: 700; }
 .dashboard-submenus button.active::before { background: #285ed4; }
