@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::time::Duration;
 
 use crate::platform::get_frontmost_app;
@@ -11,13 +11,6 @@ const DEFAULT_API_BASE_URL: &str = "http://localhost:3000/api";
 
 #[cfg(not(debug_assertions))]
 const DEFAULT_API_BASE_URL: &str = "https://api.blinkcare.website/api";
-
-#[derive(Debug, Deserialize)]
-struct SessionResponse {
-  success: bool,
-  session_id: Option<String>,
-  tracking: Option<bool>,
-}
 
 #[derive(Debug, Serialize)]
 struct CreateUsageRequest<'a> {
@@ -85,7 +78,9 @@ async fn tick(
 
   if previous_tracking && !state.tracking {
     if let Some(session_id) = state.current_session_id.clone() {
-      close_current_app(client, api_base_url, state, &session_id).await?;
+      let command = local_bridge::tracking_command();
+      let effective_api_base_url = command.api_base_url.as_deref().unwrap_or(api_base_url);
+      close_current_app(client, effective_api_base_url, state, &session_id).await?;
     }
 
     state.reset_app();
@@ -96,33 +91,13 @@ async fn tick(
 }
 
 async fn refresh_session(
-  client: &Client,
-  api_base_url: &str,
+  _client: &Client,
+  _api_base_url: &str,
   state: &mut TrackerState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-  let response = client
-    .get(format!("{api_base_url}/app-usage/session"))
-    .timeout(Duration::from_secs(2))
-    .send()
-    .await?;
-
-  if response.status().as_u16() == 404 {
-    state.current_session_id = None;
-    state.tracking = false;
-    return Ok(());
-  }
-
-  if !response.status().is_success() {
-    eprintln!("get session failed: {}", response.status());
-    return Ok(());
-  }
-
-  let session = response.json::<SessionResponse>().await?;
-
-  if session.success {
-    state.current_session_id = session.session_id;
-    state.tracking = session.tracking.unwrap_or(false);
-  }
+  let command = local_bridge::tracking_command();
+  state.current_session_id = command.session_id;
+  state.tracking = command.tracking;
 
   Ok(())
 }
@@ -140,6 +115,9 @@ async fn sync_frontmost_app(
   let Some(session_id) = state.current_session_id.clone() else {
     return Ok(());
   };
+
+  let command = local_bridge::tracking_command();
+  let api_base_url = command.api_base_url.as_deref().unwrap_or(api_base_url);
 
   let Some(app_name) = get_frontmost_app() else {
     return Ok(());

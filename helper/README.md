@@ -45,9 +45,10 @@ BLINK_API_BASE_URL=https://your-api.example.com/api npm run dev
 
 ## Chrome Extension Bridge
 
-Keep Blink Helper running before starting detection from the extension. The
-extension polls the local-only bridge while detection is active and shows the
-foreground application name in its popup.
+Open Blink Helper once after installation. It registers itself to start with the
+operating system and remains in the system tray when its window is closed. The
+extension sends its own detection session to the local-only bridge, so app usage
+is attached to the signed-in account instead of a global backend session.
 
 ## Notes
 

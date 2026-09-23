@@ -1,5 +1,6 @@
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen/offscreen.html";
 const PRODUCTION_WEB_BASE_URL = "https://blink-detection-two.vercel.app";
+const HELPER_BASE_URL = "http://127.0.0.1:17321";
 
 type ExtensionAuth = {
   accessToken: string;
@@ -347,6 +348,20 @@ const startBackendSession = async (auth: ExtensionAuth) => {
   if (!appUsageResponse.ok) {
     console.error("Unable to start desktop app tracking:", await appUsageResponse.text());
   }
+
+  try {
+    const helperResponse = await fetch(`${HELPER_BASE_URL}/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: result.data.session_id,
+        api_base_url: auth.apiBaseUrl,
+      }),
+    });
+    if (!helperResponse.ok) throw new Error(`Helper returned ${helperResponse.status}`);
+  } catch (error) {
+    console.error("Unable to start local app tracking:", error);
+  }
 };
 
 const finishBackendSession = async (authOverride?: ExtensionAuth | null) => {
@@ -363,6 +378,12 @@ const finishBackendSession = async (authOverride?: ExtensionAuth | null) => {
   const duration = Number(stored.activeSeconds ?? 0);
   const blinks = Number(stored.blinkCount ?? 0);
   const average = duration > 0 ? blinks / (duration / 60) : 0;
+  try {
+    await fetch(`${HELPER_BASE_URL}/session/stop`, { method: "POST" });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  } catch (error) {
+    console.error("Unable to stop local app tracking:", error);
+  }
   const appUsageResponse = await authenticatedFetch(auth, "/app-usage/end", { method: "POST" });
   if (!appUsageResponse.ok) {
     console.error("Unable to stop desktop app tracking:", await appUsageResponse.text());
@@ -387,7 +408,7 @@ const refreshActiveDesktopApp = async () => {
   if (now - lastHelperPollAt < 1_000) return;
   lastHelperPollAt = now;
   try {
-    const response = await fetch("http://127.0.0.1:17321/status");
+    const response = await fetch(`${HELPER_BASE_URL}/status`);
     if (!response.ok) throw new Error(`Helper returned ${response.status}`);
     const status = await response.json();
     await chrome.storage.local.set({
