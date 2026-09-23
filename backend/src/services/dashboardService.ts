@@ -194,6 +194,10 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
       screen_time_percent: percentageChange(toNumber(summary.total_duration_seconds), toNumber(previous.total_duration_seconds)),
       apps_used_percent: percentageChange(totalAppsUsed, toNumber(previous.total_apps_used)),
       previous_has_data: toNumber(previous.session_count) > 0,
+      previous_total_blinks: toNumber(previous.total_blinks),
+      previous_blink_rate: toNumber(previous.average_blinks_per_minute),
+      previous_screen_time_seconds: toNumber(previous.total_duration_seconds),
+      previous_apps_used: toNumber(previous.total_apps_used),
     },
     hourly_trend: trendResult.rows.map((row) => ({
       hour: toNumber(row.hour),
