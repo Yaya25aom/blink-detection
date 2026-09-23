@@ -9,6 +9,27 @@ import {
 } from "../services/authService.js";
 import type { LoginUser } from "../services/authService.js";
 import { refreshAccessToken } from "../services/refreshService.js";
+import { pool } from "../config/database.js";
+
+export async function currentUserController(req: Request, res: Response) {
+  try {
+    const userId = Number(req.user?.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    const result = await pool.query(
+      `SELECT user_id, user_name FROM user_service.users
+       WHERE user_id = $1 AND delete_flag = 0 AND status_active = 'ACTIVE'
+       LIMIT 1`,
+      [userId],
+    );
+    if (!result.rows[0]) return res.status(404).json({ success: false, message: "User not found" });
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("Get current user error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load user" });
+  }
+}
 
 export async function registerController(req: Request, res: Response) {
   try {

@@ -1,8 +1,9 @@
 import "./Sidebar.css";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { clearTokens } from "../utils/token";
+import { apiFetch } from "../services/apiClient";
 
 import { FaEye } from "react-icons/fa";
 
@@ -67,6 +68,7 @@ export default function Sidebar({ current, onChange }: Props) {
   const navigate = useNavigate();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [userName, setUserName] = useState("");
 
   // ==========================
   // Check Login
@@ -78,10 +80,27 @@ export default function Sidebar({ current, onChange }: Props) {
   // User
   // ==========================
 
-  const user = {
-    name: "Yanisa",
-    email: "yanisa@example.com",
-  };
+  const loadCurrentUser = useCallback(async () => {
+    if (!localStorage.getItem("accessToken")) {
+      setUserName("");
+      return;
+    }
+    try {
+      const response = await apiFetch("/auth/me");
+      const result = await response.json();
+      if (response.ok && typeof result.data?.user_name === "string") {
+        setUserName(result.data.user_name);
+      }
+    } catch {
+      setUserName("");
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCurrentUser();
+    window.addEventListener("blinkcare:auth-updated", loadCurrentUser);
+    return () => window.removeEventListener("blinkcare:auth-updated", loadCurrentUser);
+  }, [loadCurrentUser]);
 
   // ==========================
   // Login
@@ -222,12 +241,10 @@ export default function Sidebar({ current, onChange }: Props) {
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
               >
                 <div className="profile-left">
-                  <div className="avatar">Y</div>
+                  <div className="avatar">{(userName.trim()[0] || "U").toLocaleUpperCase("th-TH")}</div>
 
                   <div>
-                    <h4>{user.name}</h4>
-
-                    <p>{user.email}</p>
+                    <h4>{userName || "ผู้ใช้งาน"}</h4>
                   </div>
                 </div>
 
