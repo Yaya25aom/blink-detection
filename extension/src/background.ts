@@ -577,23 +577,27 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
   }
 
   if (message.type === "BLINKCARE_GET_DEVICE_STATUS") {
-    void chrome.storage.local.get([
-      "blinkcareAuthenticatedUserId",
-      "blinkcareHelperConnected",
-      "blinkcareActiveApp",
-      "blinkcareMonitoring",
-    ]).then((stored) => sendResponse({
-      ok: true,
-      installed: true,
-      connected: stored.blinkcareAuthenticatedUserId !== undefined,
-      helperConnected: stored.blinkcareHelperConnected === true,
-      activeApp: typeof stored.blinkcareActiveApp === "string" ? stored.blinkcareActiveApp : null,
-      monitoring: stored.blinkcareMonitoring === true,
-      version: chrome.runtime.getManifest().version,
-    })).catch((error: unknown) => sendResponse({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }));
+    lastHelperPollAt = 0;
+    void refreshActiveDesktopApp()
+      .then(() => chrome.storage.local.get([
+        "blinkcareAuthenticatedUserId",
+        "blinkcareHelperConnected",
+        "blinkcareActiveApp",
+        "blinkcareMonitoring",
+      ]))
+      .then((stored) => sendResponse({
+        ok: true,
+        installed: true,
+        connected: true,
+        authenticated: stored.blinkcareAuthenticatedUserId !== undefined,
+        helperConnected: stored.blinkcareHelperConnected === true,
+        activeApp: typeof stored.blinkcareActiveApp === "string" ? stored.blinkcareActiveApp : null,
+        monitoring: stored.blinkcareMonitoring === true,
+        version: chrome.runtime.getManifest().version,
+      })).catch((error: unknown) => sendResponse({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }));
     return true;
   }
 

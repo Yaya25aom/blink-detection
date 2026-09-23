@@ -6,7 +6,6 @@ import {
   LuCircleHelp,
   LuCircleX,
   LuCpu,
-  LuEye,
   LuLaptop,
   LuLightbulb,
   LuMonitorCheck,
@@ -104,7 +103,7 @@ export default function ConnectingDevice() {
   };
 
   const cameraReady = cameras.length > 0 && cameraPermission !== "denied";
-  const healthyCount = [cameraReady, extension.installed, extension.connected, extension.helperConnected, apiConnected]
+  const healthyCount = [cameraReady, extension.connected, extension.helperConnected, apiConnected]
     .filter(Boolean).length;
 
   return (
@@ -135,7 +134,7 @@ export default function ConnectingDevice() {
             <div className="device-panel-heading"><span><LuPuzzle /></span><div><h2>Chrome Extension</h2><p>สถานะส่วนขยายที่ใช้ตรวจจับและส่งการแจ้งเตือนนอกหน้าเว็บ</p></div></div>
             <div className="extension-summary">
               <div className="chrome-mark"><LuPuzzle /></div>
-              <div className="extension-copy"><div><strong>BlinkCare Monitor</strong><span className={extension.installed ? "connected" : "disconnected"}>{extension.installed ? "ติดตั้งแล้ว" : "ไม่พบ Extension"}</span></div><dl><div><dt>เวอร์ชัน</dt><dd>{extension.version ?? "-"}</dd></div><div><dt>บัญชี</dt><dd>{extension.connected ? "เชื่อมต่อแล้ว" : "ยังไม่เชื่อมต่อ"}</dd></div><div><dt>การตรวจจับ</dt><dd>{extension.monitoring ? "กำลังทำงาน" : "ยังไม่เริ่ม"}</dd></div></dl></div>
+              <div className="extension-copy"><div><strong>BlinkCare Monitor</strong><span className={extension.connected ? "connected" : "disconnected"}>{extension.connected ? "เชื่อมต่อแล้ว" : "ไม่พบ Extension"}</span></div><dl><div><dt>เวอร์ชัน</dt><dd>{extension.version ?? "-"}</dd></div><div><dt>สถานะ</dt><dd>{extension.connected ? "เชื่อมต่อกับเว็บไซต์แล้ว" : "ยังไม่เชื่อมต่อ"}</dd></div><div><dt>การตรวจจับ</dt><dd>{extension.monitoring ? "กำลังทำงาน" : "ยังไม่เริ่ม"}</dd></div></dl></div>
             </div>
           </section>
 
@@ -144,12 +143,11 @@ export default function ConnectingDevice() {
 
         <aside className="device-side-column">
           <section className="device-panel system-panel">
-            <div className="device-panel-heading"><span><LuMonitorCheck /></span><div><h2>สถานะระบบ</h2><p>{healthyCount}/5 รายการพร้อมใช้งาน</p></div></div>
+            <div className="device-panel-heading"><span><LuMonitorCheck /></span><div><h2>สถานะระบบ</h2><p>{healthyCount}/4 รายการพร้อมใช้งาน</p></div></div>
             <StatusRow icon={LuCamera} label="กล้อง" detail={cameraPermission === "denied" ? "ไม่ได้รับอนุญาต" : cameras.length ? `${cameras.length} อุปกรณ์` : "ไม่พบอุปกรณ์"} ok={cameraReady} />
-            <StatusRow icon={LuPuzzle} label="Chrome Extension" detail={extension.version ? `เวอร์ชัน ${extension.version}` : "ยังไม่ติดตั้ง"} ok={extension.installed} />
-            <StatusRow icon={LuEye} label="บัญชีผู้ใช้" detail={extension.connected ? "เชื่อมต่อแล้ว" : "กรุณา Login ผ่าน Extension"} ok={extension.connected} />
-            <StatusRow icon={LuLaptop} label="Blink Helper" detail={extension.helperConnected ? (extension.activeApp ?? "พร้อมติดตามแอป") : "ไม่พบแอปในเครื่อง"} ok={extension.helperConnected} />
-            <StatusRow icon={LuWifi} label="Production API" detail={apiConnected ? "เชื่อมต่อปกติ" : "ไม่สามารถเชื่อมต่อ"} ok={apiConnected} />
+            <StatusRow icon={LuPuzzle} label="Chrome Extension" detail={extension.version ? `เชื่อมต่อแล้ว · เวอร์ชัน ${extension.version}` : "ยังไม่เชื่อมต่อกับเว็บไซต์"} ok={extension.connected} />
+            <StatusRow icon={LuLaptop} label="Blink Helper" detail={extension.helperConnected ? (extension.activeApp ?? "เปิดอยู่ · พร้อมเริ่มติดตาม") : "ติดต่อ Helper ที่เปิดอยู่ไม่ได้"} ok={extension.helperConnected} />
+            <StatusRow icon={LuWifi} label="อินเทอร์เน็ต" detail={apiConnected ? "ออนไลน์ · เชื่อมต่อระบบได้" : "ออฟไลน์หรือเชื่อมต่อไม่ได้"} ok={apiConnected} />
             <button className="refresh-devices" onClick={() => void refresh()} disabled={checking}><LuRefreshCw className={checking ? "spin" : ""} />{checking ? "กำลังตรวจสอบ..." : "ตรวจสอบอีกครั้ง"}</button>
           </section>
 
