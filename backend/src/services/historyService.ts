@@ -2,20 +2,20 @@ import { pool } from "../config/database.js";
 
 export const getHistory = async (userId: number, from: string, to: string) => {
   const params = [userId, from, to];
-  const [sessionsResult, remindersResult, thresholdResult] = await Promise.all([
+  const [sessionsResult, remindersResult, thresholdResult, notificationsResult] = await Promise.all([
     pool.query(
       `
       SELECT
         session_id,
-        started_at AT TIME ZONE 'Asia/Bangkok' AS started_at,
-        ended_at AT TIME ZONE 'Asia/Bangkok' AS ended_at,
+        started_at AT TIME ZONE 'UTC' AS started_at,
+        ended_at AT TIME ZONE 'UTC' AS ended_at,
         COALESCE(duration_seconds, 0)::INTEGER AS duration_seconds,
         COALESCE(total_blinks, 0)::INTEGER AS total_blinks,
         COALESCE(average_blinks_per_minute, 0)::NUMERIC AS blink_rate,
-        started_at::date AS local_date
+        ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date AS local_date
       FROM detection_service.detection_session
       WHERE user_id = $1 AND ended_at IS NOT NULL
-        AND started_at::date BETWEEN $2::date AND $3::date
+        AND ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date BETWEEN $2::date AND $3::date
       ORDER BY started_at DESC
       `,
       params,
@@ -24,19 +24,19 @@ export const getHistory = async (userId: number, from: string, to: string) => {
       `
       SELECT
         pre.reminder_event_id,
-        pre.triggered_at AT TIME ZONE 'Asia/Bangkok' AS triggered_at,
-        pre.responded_at AT TIME ZONE 'Asia/Bangkok' AS responded_at,
+        pre.triggered_at AT TIME ZONE 'UTC' AS triggered_at,
+        pre.responded_at AT TIME ZONE 'UTC' AS responded_at,
         pre.status,
         mt.measure_code,
         mt.measure_name,
         ip.plan_name,
-        pre.triggered_at::date AS local_date
+        ((pre.triggered_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date AS local_date
       FROM plan_service.plan_reminder_event pre
       JOIN plan_service.improvement_plan ip ON ip.plan_id = pre.plan_id
       JOIN plan_service.plan_measure pm ON pm.plan_measure_id = pre.plan_measure_id
       JOIN master_data_service.measure_type mt ON mt.measure_type_id = pm.measure_type_id
       WHERE pre.user_id = $1
-        AND pre.triggered_at::date BETWEEN $2::date AND $3::date
+        AND ((pre.triggered_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date BETWEEN $2::date AND $3::date
       ORDER BY pre.triggered_at DESC
       `,
       params,
@@ -51,6 +51,15 @@ export const getHistory = async (userId: number, from: string, to: string) => {
         AND mt.measure_code = 'SESSION_LIMIT'
         AND ip.start_date <= $3::date AND ip.end_date >= $2::date
       `,
+      params,
+    ),
+    pool.query(
+      `SELECT notification_event_id, category, title, body, occurred_at,
+          timezone('Asia/Bangkok', occurred_at)::date AS local_date
+       FROM notification_service.notification_event
+       WHERE user_id = $1
+         AND timezone('Asia/Bangkok', occurred_at)::date BETWEEN $2::date AND $3::date
+       ORDER BY occurred_at DESC`,
       params,
     ),
   ]);
@@ -75,7 +84,16 @@ export const getHistory = async (userId: number, from: string, to: string) => {
     status: row.status,
     measure_code: row.measure_code,
   }));
-  const events = [...sessions, ...reminders].sort(
+  const notificationEvents = notificationsResult.rows.map((row) => ({
+    id: `notification-${row.notification_event_id}`,
+    type: "REMINDER" as const,
+    occurred_at: row.occurred_at,
+    date: row.local_date,
+    title: row.title,
+    description: row.body,
+    category: row.category,
+  }));
+  const events = [...sessions, ...reminders, ...notificationEvents].sort(
     (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
   );
   const totalSeconds = sessions.reduce((sum, session) => sum + session.duration_seconds, 0);
@@ -98,7 +116,7 @@ export const getHistory = async (userId: number, from: string, to: string) => {
     dailyMap.set(date, day);
   }
   const continuousLimitMinutes = Number(thresholdResult.rows[0]?.continuous_limit_minutes ?? 60);
-  const interestingEvents = sessionsResult.rows.flatMap((row) => {
+  const calculatedInterestingEvents = sessionsResult.rows.flatMap((row) => {
     const items = [];
     const blinkRate = Number(row.blink_rate);
     const durationMinutes = Math.round(Number(row.duration_seconds) / 60);
@@ -121,7 +139,22 @@ export const getHistory = async (userId: number, from: string, to: string) => {
       });
     }
     return items;
-  }).sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+  });
+  const persistedInterestingEvents = notificationsResult.rows
+    .filter((row) => row.category === "LOW_BLINK" || row.category === "LONG_SESSION")
+    .map((row) => ({
+      id: `notification-${row.notification_event_id}`,
+      type: row.category,
+      occurred_at: row.occurred_at,
+      title: row.title,
+      description: row.body,
+    }));
+  const interestingEvents = [...persistedInterestingEvents, ...calculatedInterestingEvents]
+    .filter((event, index, all) => all.findIndex((candidate) =>
+      candidate.title === event.title &&
+      Math.abs(new Date(candidate.occurred_at).getTime() - new Date(event.occurred_at).getTime()) < 60_000
+    ) === index)
+    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
 
   return {
     from,
@@ -129,7 +162,7 @@ export const getHistory = async (userId: number, from: string, to: string) => {
     summary: {
       total_duration_seconds: totalSeconds,
       average_blinks_per_minute: totalSeconds > 0 ? totalBlinks / (totalSeconds / 60) : 0,
-      reminder_count: reminders.length,
+      reminder_count: reminders.length + notificationEvents.length,
       active_days: activeDates.size,
     },
     daily: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)).map((day) => ({

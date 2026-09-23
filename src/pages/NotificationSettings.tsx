@@ -13,6 +13,7 @@ import {
   readNotificationHistory,
   readNotificationSettings,
   saveNotificationSettings,
+  syncNotificationHistory,
   type NotificationHistoryItem,
   type NotificationSettings as Settings,
 } from "../services/notificationSettings";
@@ -83,8 +84,14 @@ export default function NotificationSettings() {
 
   useEffect(() => {
     const refresh = () => setHistory(readNotificationHistory());
+    const refreshRemote = () => void syncNotificationHistory().then(setHistory).catch(refresh);
     window.addEventListener("blinkcare:notification-history-updated", refresh);
-    return () => window.removeEventListener("blinkcare:notification-history-updated", refresh);
+    window.addEventListener("focus", refreshRemote);
+    refreshRemote();
+    return () => {
+      window.removeEventListener("blinkcare:notification-history-updated", refresh);
+      window.removeEventListener("focus", refreshRemote);
+    };
   }, []);
 
   const toggle = (key: SettingKey) => {

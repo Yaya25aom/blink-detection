@@ -123,18 +123,35 @@ const createSystemNotification = async (
 
   const auth = await getAuth();
   if (auth) {
+    const eventId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const historyKey = `blinkcareNotificationHistory:${auth.userId}`;
     const storedHistory = await chrome.storage.local.get(historyKey);
     const history = Array.isArray(storedHistory[historyKey]) ? storedHistory[historyKey] : [];
     await chrome.storage.local.set({
       [historyKey]: [{
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        id: eventId,
         category: options.category ?? "PLAN_REMINDER",
         title,
         body: message,
         createdAt: new Date().toISOString(),
       }, ...history].slice(0, 20),
     });
+    void authenticatedFetch(auth, "/notifications/events", {
+      method: "POST",
+      body: JSON.stringify({
+        event_key: eventId,
+        category: options.category ?? "PLAN_REMINDER",
+        title,
+        body: message,
+        source: "EXTENSION",
+        occurred_at: new Date().toISOString(),
+      }),
+    }).catch(() => undefined);
+  }
+
+  if (settings.muted !== true) {
+    await ensureOffscreenDocument();
+    await chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_PLAY_NOTIFICATION_SOUND" });
   }
 
   const notificationId = `blinkcare-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -144,7 +161,7 @@ const createSystemNotification = async (
     title,
     message,
     priority: 2,
-    silent: settings.muted === true,
+    silent: true,
     requireInteraction: true,
     buttons: options.reminderEventId
       ? [{ title: "ทำสำเร็จ" }, { title: "ข้ามรอบนี้" }]
@@ -317,8 +334,8 @@ const ensureOffscreenDocument = async () => {
   if (await hasOffscreenDocument()) return;
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_DOCUMENT_PATH,
-    reasons: [chrome.offscreen.Reason.USER_MEDIA],
-    justification: "Use the camera locally to detect blinks and face presence.",
+    reasons: [chrome.offscreen.Reason.USER_MEDIA, chrome.offscreen.Reason.AUDIO_PLAYBACK],
+    justification: "Use the camera locally for detection and play BlinkCare notification sounds.",
   });
 };
 

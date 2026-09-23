@@ -1,4 +1,5 @@
 import { getCurrentUserId } from "../utils/token";
+import { apiFetch } from "./apiClient";
 
 export type NotificationSettings = {
   lowBlinkRate: boolean;
@@ -75,6 +76,17 @@ export const addNotificationHistory = (
   const history = readNotificationHistory();
   localStorage.setItem(historyKey(), JSON.stringify([item, ...history].slice(0, 20)));
   window.dispatchEvent(new Event("blinkcare:notification-history-updated"));
+  void apiFetch("/notifications/events", {
+    method: "POST",
+    body: JSON.stringify({
+      event_key: item.id,
+      category,
+      title,
+      body,
+      source: "WEB",
+      occurred_at: item.createdAt,
+    }),
+  }).catch(() => undefined);
 };
 
 export const readNotificationHistory = (): NotificationHistoryItem[] => {
@@ -84,4 +96,37 @@ export const readNotificationHistory = (): NotificationHistoryItem[] => {
   } catch {
     return [];
   }
+};
+
+export const syncNotificationHistory = async (): Promise<NotificationHistoryItem[]> => {
+  const local = readNotificationHistory();
+  await Promise.all(local.map((item) => apiFetch("/notifications/events", {
+    method: "POST",
+    body: JSON.stringify({
+      event_key: item.id,
+      category: item.category,
+      title: item.title,
+      body: item.body,
+      source: "WEB_IMPORT",
+      occurred_at: item.createdAt,
+    }),
+  }).catch(() => null)));
+  const response = await apiFetch("/notifications/events?limit=20");
+  if (!response.ok) throw new Error("Unable to load notification history");
+  const result = await response.json();
+  const remote: NotificationHistoryItem[] = (result.data ?? []).map((item: {
+    event_key: string; category: NotificationCategory; title: string; body: string; occurred_at: string;
+  }) => ({
+    id: item.event_key,
+    category: item.category,
+    title: item.title,
+    body: item.body,
+    createdAt: item.occurred_at,
+  }));
+  const merged = [...remote, ...local]
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index)
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+    .slice(0, 20);
+  localStorage.setItem(historyKey(), JSON.stringify(merged));
+  return merged;
 };

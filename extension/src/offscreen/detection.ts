@@ -34,6 +34,29 @@ const errorMessage = (error: unknown) => {
   }
 };
 
+const playNotificationSound = async () => {
+  const context = new AudioContext();
+  try {
+    if (context.state === "suspended") await context.resume();
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.48);
+    gain.connect(context.destination);
+    [740, 988].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      oscillator.start(context.currentTime + index * 0.14);
+      oscillator.stop(context.currentTime + 0.26 + index * 0.14);
+    });
+    window.setTimeout(() => void context.close(), 650);
+  } catch {
+    await context.close();
+  }
+};
+
 const sendAlert = (key: string, title: string, message: string) => {
   const now = Date.now();
   if (now - (alertCooldowns.get(key) ?? 0) < 5 * 60_000) return;
@@ -246,5 +269,6 @@ chrome.runtime.onMessage.addListener(
       });
     }
     if (message.type === "BLINKCARE_STOP") stopMonitoring();
+    if (message.type === "BLINKCARE_PLAY_NOTIFICATION_SOUND") void playNotificationSound();
   },
 );

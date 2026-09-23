@@ -27,7 +27,7 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         FROM detection_service.detection_session
         WHERE user_id = $1
           AND ended_at IS NOT NULL
-          AND started_at::date = $2::date
+          AND ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date
         `,
         params,
       ),
@@ -35,15 +35,15 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         `
         SELECT
           session_id,
-          started_at AT TIME ZONE 'Asia/Bangkok' AS started_at,
-          ended_at AT TIME ZONE 'Asia/Bangkok' AS ended_at,
+          started_at AT TIME ZONE 'UTC' AS started_at,
+          ended_at AT TIME ZONE 'UTC' AS ended_at,
           COALESCE(duration_seconds, 0)::INTEGER AS duration_seconds,
           COALESCE(total_blinks, 0)::INTEGER AS total_blinks,
           COALESCE(average_blinks_per_minute, 0)::DECIMAL AS average_blinks_per_minute
         FROM detection_service.detection_session
         WHERE user_id = $1
           AND ended_at IS NOT NULL
-          AND started_at::date = $2::date
+          AND ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date
         ORDER BY started_at DESC
         `,
         params,
@@ -51,7 +51,7 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
       pool.query(
         `
         SELECT
-          EXTRACT(HOUR FROM date_trunc('hour', started_at))::INTEGER AS hour,
+          EXTRACT(HOUR FROM ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok'))::INTEGER AS hour,
           COALESCE(SUM(total_blinks), 0)::INTEGER AS total_blinks,
           COALESCE(SUM(duration_seconds), 0)::INTEGER AS duration_seconds,
           CASE WHEN COALESCE(SUM(duration_seconds), 0) > 0
@@ -62,9 +62,9 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         FROM detection_service.detection_session
         WHERE user_id = $1
           AND ended_at IS NOT NULL
-          AND started_at::date = $2::date
-        GROUP BY date_trunc('hour', started_at)
-        ORDER BY date_trunc('hour', started_at)
+          AND ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date
+        GROUP BY EXTRACT(HOUR FROM ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok'))
+        ORDER BY EXTRACT(HOUR FROM ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok'))
         `,
         params,
       ),
@@ -84,7 +84,7 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
             AND br.timestamp < aus.ended_at
           WHERE ds.user_id = $1
             AND ds.ended_at IS NOT NULL
-            AND ds.started_at::date = $2::date
+            AND ((ds.started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date
             AND aus.ended_at IS NOT NULL
           GROUP BY aus.usage_id, aus.app_name, aus.duration_seconds
         )
@@ -107,8 +107,8 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         `
         SELECT
           aus.app_name,
-          aus.started_at AT TIME ZONE 'Asia/Bangkok' AS started_at,
-          aus.ended_at AT TIME ZONE 'Asia/Bangkok' AS ended_at,
+          aus.started_at AT TIME ZONE 'UTC' AS started_at,
+          aus.ended_at AT TIME ZONE 'UTC' AS ended_at,
           COALESCE(aus.duration_seconds, 0)::INTEGER AS duration_seconds,
           COUNT(br.id)::INTEGER AS blink_count,
           CASE WHEN COALESCE(aus.duration_seconds, 0) > 0
@@ -124,7 +124,7 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         WHERE ds.user_id = $1
           AND ds.ended_at IS NOT NULL
           AND aus.duration_seconds > 0
-          AND ds.started_at::date = $2::date
+          AND ((ds.started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date
         GROUP BY aus.usage_id, aus.app_name, aus.started_at, aus.ended_at, aus.duration_seconds
         HAVING COUNT(br.id) > 0
           AND COUNT(br.id)::DECIMAL / (aus.duration_seconds::DECIMAL / 60) < $3
