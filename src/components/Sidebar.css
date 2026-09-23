@@ -109,9 +109,10 @@
 
   flex-shrink: 0;
 
-  position: sticky;
+  position: fixed;
   top: 0;
-  align-self: flex-start;
+  left: 0;
+  bottom: 0;
   height: 100vh;
   height: 100dvh;
   min-height: 0;
@@ -123,6 +124,7 @@
 
   background: transparent;
   overflow: hidden;
+  z-index: 600;
   transition:
     width 0.25s ease,
     padding 0.25s ease;

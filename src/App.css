@@ -60,7 +60,7 @@ button,
 input,
 select,
 textarea {
-  font-family: "Prompt Thai", system-ui, "Segoe UI", sans-serif;
+  font-family: "Prompt Thai", "Manrope", system-ui, "Segoe UI", sans-serif;
 }
 
 html,
@@ -104,6 +104,7 @@ body,
   overflow-x: hidden;
 
   background: #ffffff;
+  margin-left: 200px;
   
 }
 
@@ -128,5 +129,6 @@ body,
     min-height: calc(100vh - 82px);
 
     padding-bottom: 20px;
+    margin-left: 0;
   }
 }
