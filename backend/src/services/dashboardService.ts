@@ -70,44 +70,65 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
       ),
       pool.query(
         `
+        WITH usage_stats AS (
+          SELECT
+            aus.usage_id,
+            aus.app_name,
+            aus.duration_seconds,
+            COUNT(br.id)::INTEGER AS blink_count
+          FROM detection_service.app_usage_session aus
+          JOIN detection_service.detection_session ds ON ds.session_id = aus.session_id
+          LEFT JOIN detection_service.blink_record br
+            ON br.detection_id = aus.session_id
+            AND br.timestamp >= aus.started_at
+            AND br.timestamp < aus.ended_at
+          WHERE ds.user_id = $1
+            AND ds.ended_at IS NOT NULL
+            AND ds.started_at::date = $2::date
+            AND aus.ended_at IS NOT NULL
+          GROUP BY aus.usage_id, aus.app_name, aus.duration_seconds
+        )
         SELECT
-          abs.app_name,
-          COALESCE(SUM(abs.blink_count), 0)::INTEGER AS total_blinks,
-          COALESCE(SUM(aus.duration_seconds), 0)::INTEGER AS duration_seconds,
-          CASE WHEN COALESCE(SUM(aus.duration_seconds), 0) > 0
-            THEN COALESCE(SUM(abs.blink_count), 0)::DECIMAL
-              / (SUM(aus.duration_seconds)::DECIMAL / 60)
+          app_name,
+          COALESCE(SUM(blink_count), 0)::INTEGER AS total_blinks,
+          COALESCE(SUM(duration_seconds), 0)::INTEGER AS duration_seconds,
+          CASE WHEN COALESCE(SUM(duration_seconds), 0) > 0
+            THEN COALESCE(SUM(blink_count), 0)::DECIMAL
+              / (SUM(duration_seconds)::DECIMAL / 60)
             ELSE 0
           END AS blink_rate
-        FROM detection_service.app_blink_summary abs
-        JOIN detection_service.app_usage_session aus ON aus.usage_id = abs.usage_id
-        JOIN detection_service.detection_session ds ON ds.session_id = abs.session_id
-        WHERE ds.user_id = $1
-          AND ds.ended_at IS NOT NULL
-          AND ds.started_at::date = $2::date
-        GROUP BY abs.app_name
-        ORDER BY duration_seconds DESC, abs.app_name
+        FROM usage_stats
+        GROUP BY app_name
+        ORDER BY duration_seconds DESC, app_name
         `,
         params,
       ),
       pool.query(
         `
         SELECT
-          abs.app_name,
+          aus.app_name,
           aus.started_at AT TIME ZONE 'Asia/Bangkok' AS started_at,
           aus.ended_at AT TIME ZONE 'Asia/Bangkok' AS ended_at,
           COALESCE(aus.duration_seconds, 0)::INTEGER AS duration_seconds,
-          COALESCE(abs.blink_count, 0)::INTEGER AS blink_count,
-          COALESCE(abs.average_blink_per_minute, 0)::DECIMAL AS blink_rate
-        FROM detection_service.app_blink_summary abs
-        JOIN detection_service.app_usage_session aus ON aus.usage_id = abs.usage_id
-        JOIN detection_service.detection_session ds ON ds.session_id = abs.session_id
+          COUNT(br.id)::INTEGER AS blink_count,
+          CASE WHEN COALESCE(aus.duration_seconds, 0) > 0
+            THEN COUNT(br.id)::DECIMAL / (aus.duration_seconds::DECIMAL / 60)
+            ELSE 0
+          END AS blink_rate
+        FROM detection_service.app_usage_session aus
+        JOIN detection_service.detection_session ds ON ds.session_id = aus.session_id
+        LEFT JOIN detection_service.blink_record br
+          ON br.detection_id = aus.session_id
+          AND br.timestamp >= aus.started_at
+          AND br.timestamp < aus.ended_at
         WHERE ds.user_id = $1
           AND ds.ended_at IS NOT NULL
           AND aus.duration_seconds > 0
-          AND COALESCE(abs.average_blink_per_minute, 0) < $3
           AND ds.started_at::date = $2::date
-        ORDER BY abs.average_blink_per_minute ASC, aus.duration_seconds DESC
+        GROUP BY aus.usage_id, aus.app_name, aus.started_at, aus.ended_at, aus.duration_seconds
+        HAVING COUNT(br.id) > 0
+          AND COUNT(br.id)::DECIMAL / (aus.duration_seconds::DECIMAL / 60) < $3
+        ORDER BY blink_rate ASC, aus.duration_seconds DESC
         LIMIT 3
         `,
         [...params, NORMAL_BLINK_MIN],

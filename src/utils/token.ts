@@ -11,6 +11,8 @@ export function saveTokens(
     "refreshToken",
     refreshToken
   );
+
+  window.dispatchEvent(new Event("blinkcare:auth-updated"));
 }
 
 type AccessTokenPayload = {
@@ -36,4 +38,5 @@ export function getCurrentUserId(): string | null {
 export function clearTokens() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
+  window.dispatchEvent(new Event("blinkcare:auth-updated"));
 }

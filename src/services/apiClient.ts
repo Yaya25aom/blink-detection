@@ -1,3 +1,5 @@
+import { clearTokens, saveTokens } from "../utils/token";
+
 export const API_URL = import.meta.env.VITE_API_URL ??
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:3000/api"
@@ -55,8 +57,7 @@ export const apiFetch = async (
     );
 
     if (!refreshResponse.ok) {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
+      clearTokens();
 
       window.location.href = "/";
 
@@ -66,10 +67,7 @@ export const apiFetch = async (
     const data = await refreshResponse.json();
 
     // เก็บ Access Token ใหม่
-    localStorage.setItem(
-      "accessToken",
-      data.accessToken
-    );
+    saveTokens(data.accessToken, refreshToken);
 
     accessToken = data.accessToken;
 

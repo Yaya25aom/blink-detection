@@ -4,7 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use crate::platform::get_frontmost_app;
+use crate::local_bridge;
 
+#[cfg(debug_assertions)]
+const DEFAULT_API_BASE_URL: &str = "http://localhost:3000/api";
+
+#[cfg(not(debug_assertions))]
 const DEFAULT_API_BASE_URL: &str = "https://api.blinkcare.website/api";
 
 #[derive(Debug, Deserialize)]
@@ -69,11 +74,13 @@ async fn tick(
 
   if previous_session_id.is_some() && state.current_session_id.is_none() {
     state.reset_app();
+    local_bridge::update(false, None);
     return Ok(());
   }
 
   if previous_session_id != state.current_session_id {
     state.reset_app();
+    local_bridge::update(false, None);
   }
 
   if previous_tracking && !state.tracking {
@@ -126,6 +133,7 @@ async fn sync_frontmost_app(
   state: &mut TrackerState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   if !state.tracking {
+    local_bridge::update(false, None);
     return Ok(());
   }
 
@@ -138,6 +146,7 @@ async fn sync_frontmost_app(
   };
 
   if state.last_app.as_deref() == Some(app_name.as_str()) {
+    local_bridge::update(true, Some(app_name));
     return Ok(());
   }
 
@@ -150,6 +159,7 @@ async fn sync_frontmost_app(
 
   state.last_app = Some(app_name);
   state.last_started_at = Some(now);
+  local_bridge::update(true, state.last_app.clone());
 
   Ok(())
 }

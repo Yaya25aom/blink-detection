@@ -17,6 +17,6 @@ router.post(
   authenticateToken,
   startDetection
 );
-router.post("/end", endDetectionController);
+router.post("/end", authenticateToken, endDetectionController);
 
 export default router;

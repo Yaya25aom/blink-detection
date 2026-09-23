@@ -21,6 +21,7 @@ export const createDetectionSession = async (user_id: string) => {
 // End Detection Session
 
 type EndDetectionSessionData = {
+  user_id: string;
   session_id: string;
   duration_seconds: number;
   total_blinks: number;
@@ -30,6 +31,7 @@ type EndDetectionSessionData = {
 
 export const endDetectionSession = async (data: EndDetectionSessionData) => {
   const {
+    user_id,
     session_id,
     duration_seconds,
     total_blinks,
@@ -47,6 +49,7 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
       average_blinks_per_minute = $3,
       average_ear = $4
     WHERE session_id = $5
+      AND user_id = $6
     RETURNING *
     `,
     [
@@ -55,6 +58,7 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
       average_blinks_per_minute,
       average_ear,
       session_id,
+      user_id,
     ],
   );
 

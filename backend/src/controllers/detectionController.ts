@@ -65,6 +65,14 @@ export const endDetectionController = async (
   res: Response
 ) => {
   try {
+    const user = req.user as { user_id?: string };
+    if (!user?.user_id) {
+      return res.status(401).json({
+        success: false,
+        message: "User ID not found in token",
+      });
+    }
+
     const {
       session_id,
       duration_seconds,
@@ -81,6 +89,7 @@ export const endDetectionController = async (
     }
 
     const result = await endDetectionSession({
+      user_id: user.user_id,
       session_id,
       duration_seconds,
       total_blinks,

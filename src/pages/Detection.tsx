@@ -48,6 +48,7 @@ export default function Detection() {
   const [currentAppBlinkCount, setCurrentAppBlinkCount] = useState(0);
   const pendingCurrentAppBlinks = useRef(0);
   const currentAppRef = useRef<string | null>(null);
+  const currentUsageIdRef = useRef<string | null>(null);
 
   // =====================================================
   // Average Blink Per Minute
@@ -362,6 +363,7 @@ export default function Detection() {
       if (!app) {
         setCurrentApp(null);
         currentAppRef.current = null;
+        currentUsageIdRef.current = null;
         setCurrentAppStartedAt(null);
         setCurrentAppDuration(0);
         setCurrentAppBlinkCount(0);
@@ -374,11 +376,14 @@ export default function Detection() {
       // Realtime Current App
       // ==========================================
 
-      if (currentAppRef.current !== app.app_name) {
+      const usageId = String(app.usage_id);
+      if (currentUsageIdRef.current !== usageId) {
         pendingCurrentAppBlinks.current = 0;
+        setCurrentAppBlinkCount(0);
       }
 
       currentAppRef.current = app.app_name;
+      currentUsageIdRef.current = usageId;
 
       setCurrentApp(app.app_name);
 
@@ -394,10 +399,9 @@ export default function Detection() {
 
       const statsData = await statsResponse.json();
 
-      setCurrentAppBlinkCount(
-        Number(statsData.data?.blink_count ?? 0) +
-          pendingCurrentAppBlinks.current,
-      );
+      const nextBlinkCount = Number(statsData.data?.blink_count ?? 0) +
+        pendingCurrentAppBlinks.current;
+      setCurrentAppBlinkCount((current) => Math.max(current, nextBlinkCount));
     } catch (error) {
       console.error("Get current app error:", error);
     }
@@ -1010,6 +1014,7 @@ export default function Detection() {
               recentBlinkTimestamps.current = [];
               pendingCurrentAppBlinks.current = 0;
               currentAppRef.current = null;
+              currentUsageIdRef.current = null;
 
               // =============================================
               // Reset Average

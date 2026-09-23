@@ -6,6 +6,11 @@ export const createBlink = async (
   res: Response
 ) => {
   try {
+    const userId = Number(req.user?.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const {
       detection_id,
       ear,
@@ -24,10 +29,15 @@ export const createBlink = async (
     }
 
     const blink = await createBlinkRecord({
+      user_id: userId,
       detection_id: detection_id,
       ear,
       duration_ms: duration_ms,
     });
+
+    if (!blink) {
+      return res.status(404).json({ message: "Detection session not found for this user" });
+    }
 
     return res.status(201).json({
       message: "Blink record created successfully",

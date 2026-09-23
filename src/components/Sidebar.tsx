@@ -2,6 +2,7 @@ import "./Sidebar.css";
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { clearTokens } from "../utils/token";
 
 import { FaEye } from "react-icons/fa";
 
@@ -130,8 +131,7 @@ export default function Sidebar({ current, onChange }: Props) {
       console.error("Logout error:", error);
     } finally {
       // ลบ Token ออกจาก Browser
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
+      clearTokens();
 
       setShowProfileMenu(false);
 

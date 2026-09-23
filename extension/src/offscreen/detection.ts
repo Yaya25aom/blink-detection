@@ -1,0 +1,250 @@
+import { BlinkDetector } from "../detection/blinkDetector";
+import { calculateAverageEAR } from "../detection/earCalculator";
+import { extractEyeLandmarks } from "../detection/eyeExtractor";
+import { createFaceDetector, detectFace } from "../detection/faceDetector";
+import { selectPrimaryFace } from "../detection/faceSelector";
+
+const video = document.querySelector<HTMLVideoElement>("#camera");
+if (!video) throw new Error("Camera video element was not found");
+
+let stream: MediaStream | null = null;
+let detectionTimer: number | null = null;
+let presenceTimer: number | null = null;
+let monitoring = false;
+let detector = new BlinkDetector();
+let lastBlinkCount = 0;
+let lastFaceSeenAt = 0;
+let monitoringStartedAt = 0;
+let activeStartedAt = 0;
+let blinkTimestamps: number[] = [];
+let activeSeconds = 0;
+let lightingLevel: "GOOD" | "DARK" | "UNKNOWN" = "UNKNOWN";
+let darkStartedAt = 0;
+const alertCooldowns = new Map<string, number>();
+const lightCanvas = document.createElement("canvas");
+const lightContext = lightCanvas.getContext("2d", { willReadFrequently: true });
+
+const errorMessage = (error: unknown) => {
+  if (error instanceof DOMException) return `${error.name}: ${error.message}`;
+  if (error instanceof Error) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
+const sendAlert = (key: string, title: string, message: string) => {
+  const now = Date.now();
+  if (now - (alertCooldowns.get(key) ?? 0) < 5 * 60_000) return;
+  alertCooldowns.set(key, now);
+  const categories: Record<string, string> = {
+    "low-blink": "LOW_BLINK",
+    "face-missing": "FACE_MISSING",
+    "poor-lighting": "POOR_LIGHTING",
+  };
+  void chrome.runtime.sendMessage({
+    type: "BLINKCARE_ALERT",
+    title,
+    message,
+    category: categories[key],
+  });
+};
+
+const publishDetectionUpdate = () => {
+  const now = Date.now();
+  const personPresent = lastFaceSeenAt > 0 && now - lastFaceSeenAt <= 1_500;
+  blinkTimestamps = blinkTimestamps.filter(
+    (timestamp) => timestamp >= now - 60_000,
+  );
+
+  if (personPresent) activeSeconds += 1;
+
+  void chrome.runtime.sendMessage({
+    type: "BLINKCARE_DETECTION_UPDATE",
+    blinkCount: detector.getBlinkCount(),
+    blinksPerMinute: blinkTimestamps.length,
+    activeSeconds,
+    personPresent,
+    lightingLevel,
+  });
+};
+
+const detectionLoop = async () => {
+  if (!monitoring) return;
+
+  if (video.readyState >= 2) {
+    const result = await detectFace(video);
+    const face = result ? selectPrimaryFace(result.faceLandmarks) : null;
+    const now = Date.now();
+
+    if (face) {
+      lastFaceSeenAt = now;
+      if (activeStartedAt === 0) activeStartedAt = now;
+      const eyes = extractEyeLandmarks(face);
+      const averageEar = calculateAverageEAR(eyes.leftEye, eyes.rightEye);
+      detector.update(averageEar);
+      const total = detector.getBlinkCount();
+      if (total > lastBlinkCount) {
+        blinkTimestamps.push(now);
+        lastBlinkCount = total;
+        void chrome.runtime.sendMessage({
+          type: "BLINKCARE_BLINK_DETECTED",
+          ear: averageEar,
+          durationMs: 0,
+        });
+      }
+      blinkTimestamps = blinkTimestamps.filter(
+        (timestamp) => timestamp >= now - 60_000,
+      );
+      if (lightContext) {
+        lightCanvas.width = 32;
+        lightCanvas.height = 24;
+        lightContext.drawImage(video, 0, 0, 32, 24);
+        const pixels = lightContext.getImageData(0, 0, 32, 24).data;
+        let brightness = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          brightness += (pixels[index] + pixels[index + 1] + pixels[index + 2]) / 3;
+        }
+        lightingLevel = brightness / (pixels.length / 4) < 42 ? "DARK" : "GOOD";
+        darkStartedAt = lightingLevel === "DARK" ? (darkStartedAt || now) : 0;
+        if (darkStartedAt > 0 && now - darkStartedAt >= 10_000) {
+          sendAlert(
+            "poor-lighting",
+            "แสงไม่เพียงพอสำหรับการตรวจจับ",
+            "บริเวณใบหน้ามืดเกินไป กรุณาเพิ่มแสงเพื่อให้ตรวจจับได้ชัดเจน",
+          );
+        }
+      }
+      if (now - activeStartedAt >= 60_000 && blinkTimestamps.length < 12) {
+        sendAlert(
+          "low-blink",
+          "อัตราการกะพริบตาต่ำ",
+          `ขณะนี้ ${blinkTimestamps.length} ครั้ง/นาที ควรกะพริบอย่างน้อย 12 ครั้ง/นาที`,
+        );
+      }
+    } else if (now - (lastFaceSeenAt || monitoringStartedAt) >= 30_000) {
+      activeStartedAt = 0;
+      lightingLevel = "UNKNOWN";
+      darkStartedAt = 0;
+      sendAlert("face-missing", "ไม่พบใบหน้า", "ระบบหยุดนับเวลาใช้งานชั่วคราว");
+    }
+
+  }
+
+  detectionTimer = window.setTimeout(() => void detectionLoop(), 50);
+};
+
+const startMonitoring = async () => {
+  if (monitoring) return;
+
+  console.log("[BlinkCare] 1. Creating FaceLandmarker...");
+
+  await createFaceDetector();
+
+  console.log("[BlinkCare] 2. FaceLandmarker ready");
+
+  console.log("[BlinkCare] 3. Requesting camera...");
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: false,
+  });
+
+  console.log("[BlinkCare] 4. Camera stream acquired");
+
+  video.srcObject = stream;
+
+  console.log("[BlinkCare] 5. Playing video...");
+
+  await video.play();
+
+  console.log("[BlinkCare] 6. Video playing");
+
+  detector = new BlinkDetector();
+  lastBlinkCount = 0;
+  lastFaceSeenAt = 0;
+  monitoringStartedAt = Date.now();
+  activeStartedAt = 0;
+  blinkTimestamps = [];
+  activeSeconds = 0;
+  lightingLevel = "UNKNOWN";
+  darkStartedAt = 0;
+
+  monitoring = true;
+
+  void chrome.runtime.sendMessage({
+    type: "BLINKCARE_STATUS",
+    monitoring: true,
+  });
+
+  console.log("[BlinkCare] 7. Detection started");
+
+  publishDetectionUpdate();
+  presenceTimer = window.setInterval(publishDetectionUpdate, 1000);
+  void detectionLoop();
+};
+
+const stopMonitoring = () => {
+  monitoring = false;
+  if (detectionTimer !== null) window.clearTimeout(detectionTimer);
+  detectionTimer = null;
+  if (presenceTimer !== null) window.clearInterval(presenceTimer);
+  presenceTimer = null;
+  stream?.getTracks().forEach((track) => track.stop());
+  stream = null;
+  video.srcObject = null;
+  lastFaceSeenAt = 0;
+  void chrome.runtime.sendMessage({
+    type: "BLINKCARE_DETECTION_UPDATE",
+    blinkCount: detector.getBlinkCount(),
+    blinksPerMinute: blinkTimestamps.length,
+    activeSeconds,
+    personPresent: false,
+    lightingLevel: "UNKNOWN",
+  });
+  void chrome.runtime.sendMessage({
+    type: "BLINKCARE_STATUS",
+    monitoring: false,
+  });
+};
+
+chrome.runtime.onMessage.addListener(
+  (message: { target?: string; type?: string }) => {
+    if (message.target !== "offscreen") return;
+    if (message.type === "BLINKCARE_START") {
+      void startMonitoring().catch((error: unknown) => {
+        if (error instanceof DOMException) {
+          console.error("BlinkCare DOMException:", {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            stack: error.stack,
+          });
+        } else if (error instanceof Error) {
+          console.error("BlinkCare Error:", {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          });
+        } else {
+          console.error("BlinkCare Unknown Error:", error);
+        }
+
+        stopMonitoring();
+
+        void chrome.runtime.sendMessage({
+          type: "BLINKCARE_ERROR",
+          message: errorMessage(error),
+        });
+
+        sendAlert(
+          "camera-error",
+          "ไม่สามารถเริ่มระบบตรวจจับได้",
+          `${errorMessage(error)} กรุณาตรวจสอบสิทธิ์กล้องแล้วลองอีกครั้ง`,
+        );
+      });
+    }
+    if (message.type === "BLINKCARE_STOP") stopMonitoring();
+  },
+);

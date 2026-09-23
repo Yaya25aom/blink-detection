@@ -1,3 +1,4 @@
+mod local_bridge;
 mod platform;
 mod tracker;
 
@@ -10,6 +11,7 @@ pub fn run() {
         .tooltip("Blink Helper")
         .build(app)?;
 
+      std::thread::spawn(local_bridge::run);
       tauri::async_runtime::spawn(tracker::run_tracker());
 
       Ok(())

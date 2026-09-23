@@ -6,6 +6,10 @@ The helper runs in the background, checks the active detection session from the
 backend, detects the foreground app on macOS/Windows, and sends app usage events
 to the existing API.
 
+It also exposes the current foreground application to the BlinkCare Chrome
+Extension at `http://127.0.0.1:17321/status`. The bridge only returns the helper
+status and application name; it does not expose blink measurements.
+
 ## Requirements
 
 - Node.js
@@ -20,13 +24,14 @@ npm install
 npm run dev
 ```
 
-By default the helper sends requests to:
+In development (`npm run dev`), the helper sends requests to:
 
 ```text
 http://localhost:3000/api
 ```
 
-For a deployed backend, run with:
+Release builds use `https://api.blinkcare.website/api`. To override either
+environment, run with:
 
 ```bash
 BLINK_API_BASE_URL=https://your-api.example.com/api npm run dev
@@ -37,6 +42,12 @@ BLINK_API_BASE_URL=https://your-api.example.com/api npm run dev
 - `GET /api/app-usage/session`
 - `POST /api/app-usage`
 - `POST /api/app-usage/update`
+
+## Chrome Extension Bridge
+
+Keep Blink Helper running before starting detection from the extension. The
+extension polls the local-only bridge while detection is active and shows the
+foreground application name in its popup.
 
 ## Notes
 

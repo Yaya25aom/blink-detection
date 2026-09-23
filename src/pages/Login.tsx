@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
 import { publicApiFetch } from "../services/apiClient";
+import { saveTokens } from "../utils/token";
 
 function Login() {
   const navigate = useNavigate();
@@ -56,6 +57,11 @@ function Login() {
             email: email,
           },
         });
+      } else if (result.data?.accessToken && result.data?.refreshToken) {
+        saveTokens(result.data.accessToken, result.data.refreshToken);
+        navigate("/");
+      } else {
+        throw new Error("Login tokens were not returned from server");
       }
     } catch (error) {
       if (error instanceof Error) {

@@ -4,6 +4,58 @@ import { pool } from "../config/database.js";
 import { generateAccessToken } from "../utils/jwt.js";
 import { createOtp, verifyOtp } from "./otpService.js";
 
+const REVIEW_ACCOUNT_EMAIL = "blinkcare.review.test@gmail.com";
+
+const shouldBypassOtp = (email: string) => {
+  const configuredEmails = (process.env.OTP_BYPASS_EMAILS ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return email.trim().toLowerCase() === REVIEW_ACCOUNT_EMAIL ||
+    configuredEmails.includes(email.trim().toLowerCase());
+};
+
+type LoginUser = {
+  user_id: number;
+  email: string;
+  user_name: string;
+  role_user: string;
+};
+
+const createLoginSession = async (user: LoginUser) => {
+  const accessToken = generateAccessToken(String(user.user_id), user.role_user);
+  const refreshToken = crypto.randomBytes(64).toString("hex");
+
+  await pool.query(
+    `
+    INSERT INTO auth_service.refresh_token (user_id, refresh_token, expires_at)
+    VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '7 days')
+    `,
+    [user.user_id, refreshToken],
+  );
+
+  await pool.query(
+    `
+    UPDATE auth_service.user_auth
+    SET last_login_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = $1 AND login_provider = 'LOCAL'
+    `,
+    [user.user_id],
+  );
+
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      user_id: user.user_id,
+      email: user.email,
+      user_name: user.user_name,
+      role_user: user.role_user,
+    },
+  };
+};
+
 export async function login(email: string, password: string) {
   // 1. หา User
   const userResult = await pool.query(
@@ -63,6 +115,14 @@ export async function login(email: string, password: string) {
   if (!passwordMatch) {
     throw new Error("Invalid email or password");
   }
+
+  if (shouldBypassOtp(user.email)) {
+    return {
+      requiresOtp: false,
+      ...(await createLoginSession(user)),
+    };
+  }
+
   await createOtp(user.user_id, user.email);
 
   return {
@@ -123,42 +183,5 @@ export async function verifyOtpLogin(userId: number, otp: string) {
 
   const user = result.rows[0];
 
-  // สร้าง Access Token
-  const accessToken = generateAccessToken(
-    user.user_id.toString(),
-    user.role_user,
-  );
-
-  // สร้าง Refresh Token
-  const refreshToken = crypto.randomBytes(64).toString("hex");
-
-  // เก็บ Refresh Token
-  await pool.query(
-    `
-    INSERT INTO auth_service.refresh_token
-    (
-      user_id,
-      refresh_token,
-      expires_at
-    )
-    VALUES (
-      $1,
-      $2,
-      CURRENT_TIMESTAMP + INTERVAL '7 days'
-    )
-    `,
-    [user.user_id, refreshToken],
-  );
-
-  return {
-    accessToken,
-    refreshToken,
-
-    user: {
-      user_id: user.user_id,
-      email: user.email,
-      user_name: user.user_name,
-      role_user: user.role_user,
-    },
-  };
+  return createLoginSession(user);
 }
