@@ -136,7 +136,7 @@ const createSystemNotification = async (
         createdAt: new Date().toISOString(),
       }, ...history].slice(0, 20),
     });
-    void authenticatedFetch(auth, "/notifications/events", {
+    const eventResponse = await authenticatedFetch(auth, "/notifications/events", {
       method: "POST",
       body: JSON.stringify({
         event_key: eventId,
@@ -146,7 +146,10 @@ const createSystemNotification = async (
         source: "EXTENSION",
         occurred_at: new Date().toISOString(),
       }),
-    }).catch(() => undefined);
+    });
+    if (!eventResponse.ok) {
+      console.error("Unable to save notification event:", await eventResponse.text());
+    }
   }
 
   if (settings.muted !== true) {

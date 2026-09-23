@@ -54,7 +54,7 @@ export const getHistory = async (userId: number, from: string, to: string) => {
       params,
     ),
     pool.query(
-      `SELECT notification_event_id, category, title, body, occurred_at,
+      `SELECT notification_event_id, event_key, category, title, body, occurred_at,
           timezone('Asia/Bangkok', occurred_at)::date AS local_date
        FROM notification_service.notification_event
        WHERE user_id = $1
@@ -92,6 +92,7 @@ export const getHistory = async (userId: number, from: string, to: string) => {
     title: row.title,
     description: row.body,
     category: row.category,
+    event_key: row.event_key,
   }));
   const events = [...sessions, ...reminders, ...notificationEvents].sort(
     (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
@@ -123,8 +124,10 @@ export const getHistory = async (userId: number, from: string, to: string) => {
     if (blinkRate > 0 && blinkRate < 12) {
       items.push({
         id: `low-blink-${row.session_id}`,
+        event_key: `session-low-blink-${row.session_id}`,
         type: "LOW_BLINK",
         occurred_at: row.started_at,
+        date: row.local_date,
         title: "Blink Rate ต่ำกว่าเกณฑ์",
         description: `${blinkRate.toFixed(1)} ครั้ง/นาที · ต่ำกว่าเกณฑ์ 12 ครั้ง/นาที`,
       });
@@ -132,8 +135,10 @@ export const getHistory = async (userId: number, from: string, to: string) => {
     if (durationMinutes >= continuousLimitMinutes) {
       items.push({
         id: `long-session-${row.session_id}`,
+        event_key: `session-long-session-${row.session_id}`,
         type: "LONG_SESSION",
         occurred_at: row.started_at,
+        date: row.local_date,
         title: "ใช้งานหน้าจอต่อเนื่องเกินเวลา",
         description: `${durationMinutes} นาที · เกณฑ์ที่กำหนด ${continuousLimitMinutes} นาที`,
       });
@@ -144,17 +149,37 @@ export const getHistory = async (userId: number, from: string, to: string) => {
     .filter((row) => row.category === "LOW_BLINK" || row.category === "LONG_SESSION")
     .map((row) => ({
       id: `notification-${row.notification_event_id}`,
+      event_key: row.event_key,
       type: row.category,
       occurred_at: row.occurred_at,
       title: row.title,
       description: row.body,
     }));
   const interestingEvents = [...persistedInterestingEvents, ...calculatedInterestingEvents]
+    .filter((event) => !event.event_key || !persistedInterestingEvents.some((persisted) =>
+      persisted !== event && persisted.event_key === event.event_key
+    ))
     .filter((event, index, all) => all.findIndex((candidate) =>
       candidate.title === event.title &&
       Math.abs(new Date(candidate.occurred_at).getTime() - new Date(event.occurred_at).getTime()) < 60_000
     ) === index)
     .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+  for (const event of calculatedInterestingEvents) {
+    const alreadyPersisted = notificationEvents.some((notification) => notification.event_key === event.event_key);
+    if (!alreadyPersisted) {
+      events.push({
+        id: `calculated-${event.id}`,
+        type: "REMINDER",
+        occurred_at: event.occurred_at,
+        date: event.date,
+        title: event.title,
+        description: event.description,
+        category: event.type,
+        event_key: event.event_key,
+      });
+    }
+  }
+  events.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
 
   return {
     from,

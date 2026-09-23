@@ -87,8 +87,10 @@ export default function NotificationSettings() {
     const refreshRemote = () => void syncNotificationHistory().then(setHistory).catch(refresh);
     window.addEventListener("blinkcare:notification-history-updated", refresh);
     window.addEventListener("focus", refreshRemote);
+    const refreshTimer = window.setInterval(refreshRemote, 15_000);
     refreshRemote();
     return () => {
+      window.clearInterval(refreshTimer);
       window.removeEventListener("blinkcare:notification-history-updated", refresh);
       window.removeEventListener("focus", refreshRemote);
     };

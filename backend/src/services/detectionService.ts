@@ -66,6 +66,26 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
     throw new Error("Detection session not found");
   }
 
+  if (average_blinks_per_minute > 0 && average_blinks_per_minute < 12) {
+    await pool.query(
+      `
+      INSERT INTO notification_service.notification_event
+        (user_id, event_key, category, title, body, source, occurred_at)
+      SELECT user_id, $1, 'LOW_BLINK', 'อัตราการกะพริบตาต่ำ',
+        $2, 'DETECTION', ended_at AT TIME ZONE 'UTC'
+      FROM detection_service.detection_session
+      WHERE session_id = $3 AND user_id = $4
+      ON CONFLICT (user_id, event_key) DO NOTHING
+      `,
+      [
+        `session-low-blink-${session_id}`,
+        `ขณะนี้ ${average_blinks_per_minute.toFixed(1)} ครั้ง/นาที ควรกะพริบอย่างน้อย 12 ครั้ง/นาที`,
+        session_id,
+        user_id,
+      ],
+    );
+  }
+
   // ==========================================
   // สร้าง App Blink Summary
   // ==========================================
