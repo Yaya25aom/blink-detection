@@ -9,10 +9,12 @@ import appUsageRoutes from "./routes/appUsageRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
 import historyRoutes from "./routes/historyRoutes.js";
+import passport from "./config/passport.js";
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(passport.initialize());
 
 app.get("/health", (_req, res) => {
   res.json({

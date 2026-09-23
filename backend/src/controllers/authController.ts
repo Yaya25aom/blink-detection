@@ -2,10 +2,58 @@ import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { logoutService } from "../services/logoutService.js";
 import {
+  createLoginSession,
   login,
+  registerLocalUser,
   verifyOtpLogin,
 } from "../services/authService.js";
+import type { LoginUser } from "../services/authService.js";
 import { refreshAccessToken } from "../services/refreshService.js";
+
+export async function registerController(req: Request, res: Response) {
+  try {
+    const { user_name, email, password, confirm_password } = req.body;
+    if (!user_name || !email || !password || !confirm_password) {
+      return res.status(400).json({ success: false, message: "กรุณากรอกข้อมูลให้ครบ" });
+    }
+    if (String(user_name).trim().length < 2 || String(user_name).trim().length > 100) {
+      return res.status(400).json({ success: false, message: "ชื่อผู้ใช้ต้องมี 2-100 ตัวอักษร" });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+      return res.status(400).json({ success: false, message: "รูปแบบอีเมลไม่ถูกต้อง" });
+    }
+    if (String(password).length < 8) {
+      return res.status(400).json({ success: false, message: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" });
+    }
+    if (password !== confirm_password) {
+      return res.status(400).json({ success: false, message: "รหัสผ่านยืนยันไม่ตรงกัน" });
+    }
+    const user = await registerLocalUser(user_name, email, password);
+    return res.status(201).json({ success: true, message: "สร้างบัญชีสำเร็จ", data: user });
+  } catch (error) {
+    if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {
+      return res.status(409).json({ success: false, message: "อีเมลนี้ถูกใช้งานแล้ว" });
+    }
+    console.error("Register error:", error);
+    return res.status(500).json({ success: false, message: "ไม่สามารถสร้างบัญชีได้" });
+  }
+}
+
+export async function googleCallbackController(req: Request, res: Response) {
+  try {
+    const session = await createLoginSession(req.user as LoginUser);
+    const frontendUrl = process.env.FRONTEND_URL ?? "https://blink-detection-two.vercel.app";
+    const fragment = new URLSearchParams({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    });
+    return res.redirect(`${frontendUrl}/auth/google/callback#${fragment.toString()}`);
+  } catch (error) {
+    console.error("Google callback error:", error);
+    const frontendUrl = process.env.FRONTEND_URL ?? "https://blink-detection-two.vercel.app";
+    return res.redirect(`${frontendUrl}/auth?google_error=1`);
+  }
+}
 
 export async function loginController(req: Request, res: Response) {
   try {

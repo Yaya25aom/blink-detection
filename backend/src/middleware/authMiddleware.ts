@@ -88,7 +88,10 @@ export const authenticateToken = async (
     // =========================
     // 7. Attach user to request
     // =========================
-    req.user = decoded;
+    if (decoded.user_id === undefined || typeof decoded.role_user !== "string") {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+    req.user = decoded as Express.User;
 
     next();
 

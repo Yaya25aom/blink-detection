@@ -15,14 +15,14 @@ const shouldBypassOtp = (email: string) => {
     configuredEmails.includes(email.trim().toLowerCase());
 };
 
-type LoginUser = {
+export type LoginUser = {
   user_id: number;
   email: string;
   user_name: string;
   role_user: string;
 };
 
-const createLoginSession = async (user: LoginUser) => {
+export const createLoginSession = async (user: LoginUser) => {
   const accessToken = generateAccessToken(String(user.user_id), user.role_user);
   const refreshToken = crypto.randomBytes(64).toString("hex");
 
@@ -55,6 +55,119 @@ const createLoginSession = async (user: LoginUser) => {
     },
   };
 };
+
+export async function registerLocalUser(userName: string, email: string, password: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query(
+      `SELECT user_id FROM user_service.users WHERE LOWER(email) = $1 AND delete_flag = 0 LIMIT 1`,
+      [normalizedEmail],
+    );
+    if (existing.rows.length > 0) throw new Error("EMAIL_ALREADY_EXISTS");
+
+    const userResult = await client.query<LoginUser>(
+      `
+      INSERT INTO user_service.users (user_name, email)
+      VALUES ($1, $2)
+      RETURNING user_id, email, user_name, role_user
+      `,
+      [userName.trim(), normalizedEmail],
+    );
+    const user = userResult.rows[0];
+    if (!user) throw new Error("REGISTER_FAILED");
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await client.query(
+      `
+      INSERT INTO auth_service.user_auth (user_id, login_provider, password_hash)
+      VALUES ($1, 'LOCAL', $2)
+      `,
+      [user.user_id, passwordHash],
+    );
+    await client.query("COMMIT");
+    return { user_id: user.user_id, email: user.email, user_name: user.user_name };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function findOrCreateGoogleUser(profile: {
+  providerUserId: string;
+  email: string;
+  displayName: string;
+}) {
+  const normalizedEmail = profile.email.trim().toLowerCase();
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const providerResult = await client.query<LoginUser>(
+      `
+      SELECT u.user_id, u.email, u.user_name, u.role_user
+      FROM auth_service.user_auth a
+      JOIN user_service.users u ON u.user_id = a.user_id
+      WHERE a.login_provider = 'GOOGLE' AND a.provider_user_id = $1
+        AND u.delete_flag = 0 AND u.status_active = 'ACTIVE'
+      LIMIT 1
+      `,
+      [profile.providerUserId],
+    );
+    if (providerResult.rows[0]) {
+      await client.query("COMMIT");
+      return providerResult.rows[0];
+    }
+
+    const emailResult = await client.query<LoginUser>(
+      `
+      SELECT user_id, email, user_name, role_user
+      FROM user_service.users
+      WHERE LOWER(email) = $1 AND delete_flag = 0
+      LIMIT 1
+      `,
+      [normalizedEmail],
+    );
+    let user = emailResult.rows[0];
+
+    if (!user) {
+      const created = await client.query<LoginUser>(
+        `
+        INSERT INTO user_service.users (user_name, email, email_verified)
+        VALUES ($1, $2, TRUE)
+        RETURNING user_id, email, user_name, role_user
+        `,
+        [profile.displayName || normalizedEmail.split("@")[0], normalizedEmail],
+      );
+      user = created.rows[0];
+    } else {
+      await client.query(
+        `UPDATE user_service.users SET email_verified = TRUE, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1`,
+        [user.user_id],
+      );
+    }
+
+    if (!user) throw new Error("GOOGLE_LOGIN_FAILED");
+    await client.query(
+      `
+      INSERT INTO auth_service.user_auth (user_id, login_provider, provider_user_id)
+      VALUES ($1, 'GOOGLE', $2)
+      `,
+      [user.user_id, profile.providerUserId],
+    );
+    await client.query("COMMIT");
+    return user;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 export async function login(email: string, password: string) {
   // 1. หา User

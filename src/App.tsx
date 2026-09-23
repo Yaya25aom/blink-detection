@@ -23,6 +23,8 @@ import NotificationSettings from "./pages/NotificationSettings";
 import Support from "./pages/Support";
 import Privacy from "./pages/Privacy";
 import ConnectingDevice from "./pages/ConnectingDevice";
+import Register from "./pages/Register";
+import GoogleCallback from "./pages/GoogleCallback";
 
 import "./components/Sidebar.css";
 import "./App.css";
@@ -140,6 +142,9 @@ function App() {
           path="/verify-otp"
           element={<VerifyOtp />}
         />
+
+        <Route path="/register" element={<Register />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
 
         {/* Auth */}

@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { RiCloseLine } from "react-icons/ri";
 import { FcGoogle } from "react-icons/fc";
 import { FaEye } from "react-icons/fa";
+import { API_URL } from "../services/apiClient";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,11 +21,11 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    console.log("Google Login");
+    window.location.assign(`${API_URL}/auth/google`);
   };
 
   const handleRegister = () => {
-    navigate("/login", { replace: true, state: { returnTo } });
+    navigate("/register", { state: { returnTo } });
   };
 
   return (
