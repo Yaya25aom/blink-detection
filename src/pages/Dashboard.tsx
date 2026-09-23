@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   LuActivity,
   LuClock3,
   LuEye,
+  LuMonitor,
   LuRefreshCw,
+  LuShieldCheck,
   LuTriangleAlert,
 } from "react-icons/lu";
 import { apiFetch } from "../services/apiClient";
@@ -16,8 +19,21 @@ type DashboardData = {
     session_count: number;
     total_blinks: number;
     total_duration_seconds: number;
-    average_blinks_per_session: number;
+    total_apps_used: number;
     average_blinks_per_minute: number;
+  };
+  dry_eye_risk: {
+    score: number;
+    level: "none" | "low" | "medium" | "high";
+    blink_component: number;
+    screen_time_component: number;
+  };
+  comparison: {
+    total_blinks_percent: number | null;
+    blink_rate_percent: number | null;
+    screen_time_percent: number | null;
+    apps_used_percent: number | null;
+    previous_has_data: boolean;
   };
   hourly_trend: Array<{
     hour: number;
@@ -69,6 +85,39 @@ const formatTime = (date: string) =>
     minute: "2-digit",
     hour12: false,
   }).format(new Date(date));
+
+const comparisonText = (value: number | null, hasPrevious: boolean) => {
+  if (!hasPrevious || value === null) return { text: "ยังไม่มีข้อมูลวันก่อนหน้า", tone: "neutral" };
+  if (value === 0) return { text: "เท่ากับวันก่อนหน้า", tone: "neutral" };
+  return {
+    text: `${value > 0 ? "เพิ่มขึ้น" : "ลดลง"} ${Math.abs(value).toFixed(1)}% จากวันก่อนหน้า`,
+    tone: value > 0 ? "up" : "down",
+  };
+};
+
+function MetricCard({
+  icon,
+  label,
+  value,
+  comparison,
+  detail,
+  detailTone,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  comparison: { text: string; tone: string };
+  detail: string;
+  detailTone?: string;
+}) {
+  return (
+    <article className="metric-card">
+      {icon}<span>{label}</span><strong>{value}</strong>
+      <small className={`metric-comparison ${comparison.tone}`}>{comparison.text}</small>
+      <small className={detailTone ? `health-label ${detailTone}` : "metric-detail"}>{detail}</small>
+    </article>
+  );
+}
 
 function BlinkTrend({ data }: { data: DashboardData }) {
   const width = 760;
@@ -145,10 +194,17 @@ export default function Dashboard() {
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
   const health = useMemo(() => {
-    if (!data || data.summary.session_count === 0) return { label: "No data", tone: "empty" };
-    if (data.summary.average_blinks_per_minute < data.normal_range.min) return { label: "Below normal", tone: "low" };
-    if (data.summary.average_blinks_per_minute > data.normal_range.max) return { label: "Above normal", tone: "medium" };
-    return { label: "Normal", tone: "normal" };
+    if (!data || data.summary.session_count === 0) return { label: "ยังไม่มีข้อมูล", tone: "empty" };
+    if (data.summary.average_blinks_per_minute < data.normal_range.min) return { label: "ต่ำกว่าเกณฑ์", tone: "low" };
+    if (data.summary.average_blinks_per_minute > data.normal_range.max) return { label: "สูงกว่าเกณฑ์", tone: "medium" };
+    return { label: "อยู่ในเกณฑ์", tone: "normal" };
+  }, [data]);
+
+  const riskCopy = useMemo(() => {
+    if (!data || data.dry_eye_risk.level === "none") return { label: "ยังไม่มีข้อมูล", description: "เริ่มตรวจจับเพื่อประเมินพฤติกรรม", tone: "none" };
+    if (data.dry_eye_risk.level === "high") return { label: "ความเสี่ยงสูง", description: "ควรเพิ่มการพักสายตาและลดช่วงใช้งานต่อเนื่อง", tone: "high" };
+    if (data.dry_eye_risk.level === "medium") return { label: "ความเสี่ยงปานกลาง", description: "ควรสังเกต Blink Rate และพักสายตาให้สม่ำเสมอ", tone: "medium" };
+    return { label: "ความเสี่ยงต่ำ", description: "พฤติกรรมวันนี้อยู่ในระดับที่เหมาะสม", tone: "low" };
   }, [data]);
 
   return (
@@ -173,10 +229,14 @@ export default function Dashboard() {
       {!loading && !error && data && (
         <>
           <div className="metric-grid">
-            <article className="metric-card"><LuEye /><span>Total blinks</span><strong>{data.summary.total_blinks.toLocaleString()}</strong><small>{data.summary.session_count} completed sessions</small></article>
-            <article className="metric-card"><LuActivity /><span>Avg. blinks / session</span><strong>{data.summary.average_blinks_per_session.toFixed(1)}</strong><small>Total blinks divided by sessions</small></article>
-            <article className="metric-card"><LuActivity /><span>Avg. blinks / min</span><strong>{data.summary.average_blinks_per_minute.toFixed(1)}</strong><small className={`health-label ${health.tone}`}>{health.label}</small></article>
-            <article className="metric-card"><LuClock3 /><span>Total screen time</span><strong>{formatDuration(data.summary.total_duration_seconds)}</strong><small>Across completed sessions</small></article>
+            <article className={`risk-summary-card ${riskCopy.tone}`}>
+              <div className="risk-summary-main"><span><LuShieldCheck /></span><div><small>ประเมินพฤติกรรมความเสี่ยง Dry Eye</small><strong>{riskCopy.label}</strong><p>{riskCopy.description}</p></div><b>{data.dry_eye_risk.score}<small>/100</small></b></div>
+              <div className="risk-components"><span>การกะพริบตา <strong>{data.dry_eye_risk.blink_component}/60</strong></span><span>เวลาหน้าจอ <strong>{data.dry_eye_risk.screen_time_component}/40</strong></span></div>
+            </article>
+            <MetricCard icon={<LuEye />} label="Total blinks" value={data.summary.total_blinks.toLocaleString()} comparison={comparisonText(data.comparison.total_blinks_percent, data.comparison.previous_has_data)} detail={`${data.summary.session_count} completed sessions`} />
+            <MetricCard icon={<LuMonitor />} label="Total App used" value={data.summary.total_apps_used.toLocaleString()} comparison={comparisonText(data.comparison.apps_used_percent, data.comparison.previous_has_data)} detail="แอปที่ตรวจพบในวันนี้" />
+            <MetricCard icon={<LuActivity />} label="Avg. blinks / min" value={data.summary.average_blinks_per_minute.toFixed(1)} comparison={comparisonText(data.comparison.blink_rate_percent, data.comparison.previous_has_data)} detail={health.label} detailTone={health.tone} />
+            <MetricCard icon={<LuClock3 />} label="Total screen time" value={formatDuration(data.summary.total_duration_seconds)} comparison={comparisonText(data.comparison.screen_time_percent, data.comparison.previous_has_data)} detail="Across completed sessions" />
           </div>
 
           <div className="dashboard-grid">

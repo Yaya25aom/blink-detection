@@ -7,7 +7,7 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
   const selectedDate = date ?? new Date().toISOString().slice(0, 10);
   const params = [userId, selectedDate];
 
-  const [summaryResult, sessionsResult, trendResult, appsResult, risksResult] =
+  const [summaryResult, sessionsResult, trendResult, appsResult, risksResult, previousResult] =
     await Promise.all([
       pool.query(
         `
@@ -15,10 +15,6 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
           COUNT(*)::INTEGER AS session_count,
           COALESCE(SUM(total_blinks), 0)::INTEGER AS total_blinks,
           COALESCE(SUM(duration_seconds), 0)::INTEGER AS total_duration_seconds,
-          CASE WHEN COUNT(*) > 0
-            THEN COALESCE(SUM(total_blinks), 0)::DECIMAL / COUNT(*)
-            ELSE 0
-          END AS average_blinks_per_session,
           CASE WHEN COALESCE(SUM(duration_seconds), 0) > 0
             THEN COALESCE(SUM(total_blinks), 0)::DECIMAL
               / (SUM(duration_seconds)::DECIMAL / 60)
@@ -133,10 +129,48 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
         `,
         [...params, NORMAL_BLINK_MIN],
       ),
+      pool.query(
+        `
+        WITH previous_sessions AS (
+          SELECT total_blinks, duration_seconds
+          FROM detection_service.detection_session
+          WHERE user_id = $1 AND ended_at IS NOT NULL
+            AND ((started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date - 1
+        ), previous_apps AS (
+          SELECT COUNT(DISTINCT aus.app_name)::INTEGER AS total_apps_used
+          FROM detection_service.app_usage_session aus
+          JOIN detection_service.detection_session ds ON ds.session_id = aus.session_id
+          WHERE ds.user_id = $1 AND ds.ended_at IS NOT NULL AND aus.ended_at IS NOT NULL
+            AND ((ds.started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date - 1
+        )
+        SELECT
+          COUNT(*)::INTEGER AS session_count,
+          COALESCE(SUM(total_blinks), 0)::INTEGER AS total_blinks,
+          COALESCE(SUM(duration_seconds), 0)::INTEGER AS total_duration_seconds,
+          CASE WHEN COALESCE(SUM(duration_seconds), 0) > 0
+            THEN COALESCE(SUM(total_blinks), 0)::DECIMAL / (SUM(duration_seconds)::DECIMAL / 60)
+            ELSE 0
+          END AS average_blinks_per_minute,
+          (SELECT total_apps_used FROM previous_apps) AS total_apps_used
+        FROM previous_sessions
+        `,
+        params,
+      ),
     ]);
 
   const summary = summaryResult.rows[0];
+  const previous = previousResult.rows[0];
   const toNumber = (value: unknown) => Number(value ?? 0);
+  const totalAppsUsed = appsResult.rows.length;
+  const blinkRate = toNumber(summary.average_blinks_per_minute);
+  const screenHours = toNumber(summary.total_duration_seconds) / 3600;
+  const blinkRisk = blinkRate > 0 ? Math.min(60, Math.max(0, ((NORMAL_BLINK_MIN - blinkRate) / NORMAL_BLINK_MIN) * 60)) : 0;
+  const screenRisk = Math.min(40, Math.max(0, ((screenHours - 2) / 4) * 40));
+  const riskScore = Math.round(blinkRisk + screenRisk);
+  const riskLevel = summary.session_count === 0 ? "none" : riskScore >= 55 ? "high" : riskScore >= 25 ? "medium" : "low";
+  const percentageChange = (current: number, prior: number) => prior > 0
+    ? Number((((current - prior) / prior) * 100).toFixed(1))
+    : null;
 
   return {
     date: selectedDate,
@@ -145,8 +179,21 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
       session_count: toNumber(summary.session_count),
       total_blinks: toNumber(summary.total_blinks),
       total_duration_seconds: toNumber(summary.total_duration_seconds),
-      average_blinks_per_session: toNumber(summary.average_blinks_per_session),
+      total_apps_used: totalAppsUsed,
       average_blinks_per_minute: toNumber(summary.average_blinks_per_minute),
+    },
+    dry_eye_risk: {
+      score: riskScore,
+      level: riskLevel,
+      blink_component: Math.round(blinkRisk),
+      screen_time_component: Math.round(screenRisk),
+    },
+    comparison: {
+      total_blinks_percent: percentageChange(toNumber(summary.total_blinks), toNumber(previous.total_blinks)),
+      blink_rate_percent: percentageChange(blinkRate, toNumber(previous.average_blinks_per_minute)),
+      screen_time_percent: percentageChange(toNumber(summary.total_duration_seconds), toNumber(previous.total_duration_seconds)),
+      apps_used_percent: percentageChange(totalAppsUsed, toNumber(previous.total_apps_used)),
+      previous_has_data: toNumber(previous.session_count) > 0,
     },
     hourly_trend: trendResult.rows.map((row) => ({
       hour: toNumber(row.hour),
