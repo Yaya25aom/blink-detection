@@ -45,6 +45,29 @@ type ExtensionDetection = {
   activeApp: string | null;
 };
 
+const sendExtensionCommand = (action: "START" | "STOP") =>
+  new Promise<void>((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener("blinkcare:extension-command-response", receive as EventListener);
+      reject(new Error("ไม่พบ BlinkCare Extension กรุณาติดตั้งหรือ Reload Extension ก่อน"));
+    }, 5_000);
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<{ requestId: string; ok: boolean; error?: string }>).detail;
+      if (detail?.requestId !== requestId) return;
+      window.clearTimeout(timeout);
+      window.removeEventListener("blinkcare:extension-command-response", receive as EventListener);
+      if (detail.ok) resolve();
+      else reject(new Error(detail.error === "AUTH_REQUIRED"
+        ? "กรุณาเข้าสู่ระบบและเชื่อมบัญชีกับ Extension ก่อน"
+        : detail.error || "ไม่สามารถสั่งงาน Extension ได้"));
+    };
+    window.addEventListener("blinkcare:extension-command-response", receive as EventListener);
+    window.dispatchEvent(new CustomEvent("blinkcare:extension-command", {
+      detail: { requestId, action },
+    }));
+  });
+
 export default function Detection() {
   const { videoRef, cameraOn, startCamera, stopCamera } = useCamera();
 
@@ -139,6 +162,23 @@ export default function Detection() {
   const [externalSession, setExternalSession] = useState(false);
   const localSessionRef = useRef(false);
   const extensionBridgeSessionRef = useRef(false);
+  const [extensionCommandPending, setExtensionCommandPending] = useState(false);
+
+  const controlExtension = async (action: "START" | "STOP") => {
+    if (extensionCommandPending) return;
+    if (action === "START" && externalSession) {
+      window.alert("บัญชีนี้กำลังมี Detection Session ทำงานอยู่แล้ว");
+      return;
+    }
+    setExtensionCommandPending(true);
+    try {
+      await sendExtensionCommand(action);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "ไม่สามารถสั่งงาน Extension ได้");
+    } finally {
+      setExtensionCommandPending(false);
+    }
+  };
 
   useEffect(() => {
     const receiveExtensionDetection = (event: Event) => {
@@ -1075,6 +1115,9 @@ export default function Detection() {
           // =================================================
 
           onStart={async () => {
+            await controlExtension("START");
+            return;
+
             // ===============================================
             // RESUME SESSION
             // ===============================================
@@ -1208,7 +1251,10 @@ export default function Detection() {
           // End Session
           // =================================================
 
-          onEnd={handleEndSession}
+          onEnd={() => {
+            if (localSessionRef.current) void handleEndSession();
+            else void controlExtension("STOP");
+          }}
         />
       </div>
 

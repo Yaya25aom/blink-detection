@@ -64,7 +64,7 @@ export default function CameraView({
 
         {externalSession ? (
           <div className="extension-monitoring-note">
-            Extension is detecting. Use the Extension popup to stop this session.
+            Extension is detecting. Live results are synchronized with this page.
           </div>
         ) : !cameraOn ? (
           <button
@@ -96,7 +96,7 @@ export default function CameraView({
         <button
           className="stop-btn"
           onClick={onEnd}
-          disabled={!sessionActive || externalSession}
+          disabled={!sessionActive}
         >
           <BsStopCircle />
 

@@ -98,6 +98,29 @@ const syncLiveDetection = async () => {
 void syncLiveDetection();
 setInterval(() => void syncLiveDetection(), 1_000);
 
+window.addEventListener("blinkcare:extension-command", (event: Event) => {
+  const detail = (event as CustomEvent<{ requestId?: string; action?: "START" | "STOP" }>).detail;
+  if (!detail?.requestId || !detail.action) return;
+  const type = detail.action === "START"
+    ? "BLINKCARE_POPUP_START"
+    : "BLINKCARE_POPUP_STOP";
+  void chrome.runtime.sendMessage({ type })
+    .then((response) => {
+      window.dispatchEvent(new CustomEvent("blinkcare:extension-command-response", {
+        detail: { requestId: detail.requestId, ...response },
+      }));
+    })
+    .catch((error: unknown) => {
+      window.dispatchEvent(new CustomEvent("blinkcare:extension-command-response", {
+        detail: {
+          requestId: detail.requestId,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }));
+    });
+});
+
 window.addEventListener("blinkcare:device-status-request", () => {
   void chrome.runtime.sendMessage({ type: "BLINKCARE_GET_DEVICE_STATUS" })
     .then((status) => {
