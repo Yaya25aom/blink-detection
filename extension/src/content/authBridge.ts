@@ -80,6 +80,24 @@ setInterval(syncAuth, 1_500);
 void syncNotificationHistory();
 setInterval(() => void syncNotificationHistory(), 2_000);
 
+const syncLiveDetection = async () => {
+  try {
+    const status = await chrome.runtime.sendMessage({
+      type: "BLINKCARE_GET_LIVE_DETECTION",
+    });
+    window.dispatchEvent(new CustomEvent("blinkcare:extension-detection", {
+      detail: status,
+    }));
+  } catch {
+    window.dispatchEvent(new CustomEvent("blinkcare:extension-detection", {
+      detail: { ok: false, monitoring: false },
+    }));
+  }
+};
+
+void syncLiveDetection();
+setInterval(() => void syncLiveDetection(), 1_000);
+
 window.addEventListener("blinkcare:device-status-request", () => {
   void chrome.runtime.sendMessage({ type: "BLINKCARE_GET_DEVICE_STATUS" })
     .then((status) => {

@@ -46,6 +46,7 @@ type ExtensionMessage =
   | { type: "BLINKCARE_PLAN_UPDATED" }
   | { type: "BLINKCARE_GET_NOTIFICATION_HISTORY" }
   | { type: "BLINKCARE_GET_DEVICE_STATUS" }
+  | { type: "BLINKCARE_GET_LIVE_DETECTION" }
   | { type: "BLINKCARE_AUTH_SYNC"; accessToken: string; refreshToken: string; apiBaseUrl: string; webBaseUrl: string; notificationSettings?: NotificationSettings }
   | { type: "BLINKCARE_AUTH_CLEAR"; apiBaseUrl: string; webBaseUrl: string };
 
@@ -572,6 +573,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               person_present: message.personPresent,
               lighting_level: message.lightingLevel,
             }),
+          }).then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`Live detection sync failed (${response.status}): ${await response.text()}`);
+            }
           });
         })
         .catch((error) => console.error("Unable to sync live detection state:", error));
@@ -642,6 +647,35 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         ok: false,
         error: error instanceof Error ? error.message : String(error),
       }));
+    return true;
+  }
+
+  if (message.type === "BLINKCARE_GET_LIVE_DETECTION") {
+    void chrome.storage.local.get([
+      "blinkcareAuthenticatedUserId",
+      "blinkcareSessionId",
+      "blinkcareMonitoring",
+      "blinkCount",
+      "blinksPerMinute",
+      "activeSeconds",
+      "personPresent",
+      "lightingLevel",
+      "blinkcareActiveApp",
+    ]).then((stored) => sendResponse({
+      ok: true,
+      userId: stored.blinkcareAuthenticatedUserId ?? null,
+      sessionId: stored.blinkcareSessionId ?? null,
+      monitoring: stored.blinkcareMonitoring === true,
+      blinkCount: Number(stored.blinkCount ?? 0),
+      blinksPerMinute: Number(stored.blinksPerMinute ?? 0),
+      activeSeconds: Number(stored.activeSeconds ?? 0),
+      personPresent: stored.personPresent === true,
+      lightingLevel: stored.lightingLevel ?? "UNKNOWN",
+      activeApp: stored.blinkcareActiveApp ?? null,
+    })).catch((error: unknown) => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }));
     return true;
   }
 

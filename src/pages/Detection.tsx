@@ -32,6 +32,19 @@ type ActiveDetection = {
   live_updated_at: string | null;
 };
 
+type ExtensionDetection = {
+  ok: boolean;
+  userId: string | null;
+  sessionId: string | null;
+  monitoring: boolean;
+  blinkCount: number;
+  blinksPerMinute: number;
+  activeSeconds: number;
+  personPresent: boolean;
+  lightingLevel: "GOOD" | "DARK" | "UNKNOWN";
+  activeApp: string | null;
+};
+
 export default function Detection() {
   const { videoRef, cameraOn, startCamera, stopCamera } = useCamera();
 
@@ -125,6 +138,42 @@ export default function Detection() {
   const [paused, setPaused] = useState(false);
   const [externalSession, setExternalSession] = useState(false);
   const localSessionRef = useRef(false);
+  const extensionBridgeSessionRef = useRef(false);
+
+  useEffect(() => {
+    const receiveExtensionDetection = (event: Event) => {
+      if (localSessionRef.current) return;
+      const detail = (event as CustomEvent<ExtensionDetection>).detail;
+      if (!detail?.ok) return;
+      if (!detail.monitoring || !detail.sessionId) {
+        if (extensionBridgeSessionRef.current) {
+          extensionBridgeSessionRef.current = false;
+          setExternalSession(false);
+          setSessionActive(false);
+          setDetectionId(null);
+          setCurrentApp(null);
+          currentAppRef.current = null;
+        }
+        return;
+      }
+      extensionBridgeSessionRef.current = true;
+      setExternalSession(true);
+      setSessionActive(true);
+      setPaused(false);
+      setDetectionId(detail.sessionId);
+      setBlinkCount(detail.blinkCount);
+      sessionBlinkCount.current = detail.blinkCount;
+      setDuration(detail.activeSeconds);
+      presenceActiveSeconds.current = detail.activeSeconds;
+      setAverageBlinkPerMinute(detail.blinksPerMinute);
+      if (detail.activeApp) {
+        setCurrentApp(detail.activeApp);
+        currentAppRef.current = detail.activeApp;
+      }
+    };
+    window.addEventListener("blinkcare:extension-detection", receiveExtensionDetection);
+    return () => window.removeEventListener("blinkcare:extension-detection", receiveExtensionDetection);
+  }, []);
 
   // Extension and website share the same backend session state. The website is
   // read-only while the Extension owns the camera, preventing two detectors
@@ -143,7 +192,7 @@ export default function Detection() {
         const fresh = active?.live_updated_at
           ? Date.now() - new Date(active.live_updated_at).getTime() < 10_000
           : false;
-        if (active?.detection_source === "EXTENSION" && fresh) {
+        if (active && fresh) {
           setExternalSession(true);
           setSessionActive(true);
           setPaused(false);
@@ -1063,7 +1112,10 @@ export default function Detection() {
 
             console.log("START NEW SESSION");
 
-            if (externalSession) return;
+            if (externalSession) {
+              window.alert("บัญชีนี้กำลังตรวจจับจาก Extension หรืออุปกรณ์อื่นอยู่ กรุณาสิ้นสุด Session ปัจจุบันก่อน");
+              return;
+            }
 
             const id = await startDetectionSession();
 
