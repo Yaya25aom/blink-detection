@@ -170,7 +170,7 @@ const detectionLoop = async () => {
 
   }
 
-  detectionTimer = window.setTimeout(() => void detectionLoop(), 16);
+  detectionTimer = window.setTimeout(() => void detectionLoop(), 0);
 };
 
 const startMonitoring = async () => {

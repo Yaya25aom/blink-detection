@@ -36,7 +36,7 @@ export async function createFaceDetector() {
             },
 
             runningMode: "VIDEO",
-            numFaces: 5,
+            numFaces: 1,
         }
     );
 

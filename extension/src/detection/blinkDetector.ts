@@ -13,8 +13,7 @@ const percentile = (values: number[], ratio: number) => {
 
 export class BlinkDetector {
   private calibrationFrames: number[] = [];
-  private readonly CALIBRATION_FRAME_COUNT = 45;
-  private smoothedEar = 0;
+  private readonly CALIBRATION_FRAME_COUNT = 30;
   private baselineEAR = 0;
   private partialThreshold = 0;
   private fullThreshold = 0;
@@ -22,73 +21,50 @@ export class BlinkDetector {
   private calibrated = false;
   private currentState: EyeState = EyeState.OPEN;
   private blinkCount = 0;
-  private closeCandidateFrames = 0;
-  private reopenCandidateFrames = 0;
-  private closureStartedAt = 0;
-  private closureConfirmed = false;
-  private readonly MIN_CLOSED_MS = 45;
-  private readonly MAX_CLOSED_MS = 1_200;
+  private eyeWasClosed = false;
+  private closedAt = 0;
+  private readonly MAX_CLOSURE_MS = 1_500;
 
   public update(ear: number, now = performance.now()): EyeState {
     if (!Number.isFinite(ear) || ear <= 0.04 || ear >= 0.65) return this.currentState;
 
-    // A responsive EMA removes single-frame landmark noise without swallowing
-    // a normal 100-150 ms blink like a wide median window can.
-    this.smoothedEar = this.smoothedEar === 0
-      ? ear
-      : this.smoothedEar * 0.25 + ear * 0.75;
-
     if (!this.calibrated) {
-      this.calibrationFrames.push(this.smoothedEar);
+      this.calibrationFrames.push(ear);
       if (this.calibrationFrames.length >= this.CALIBRATION_FRAME_COUNT) {
-        this.baselineEAR = percentile(this.calibrationFrames, 0.85);
+        this.baselineEAR = percentile(this.calibrationFrames, 0.8);
+        // Relative thresholds support naturally small eyes without a fixed floor.
         this.partialThreshold = this.baselineEAR * 0.84;
-        this.fullThreshold = this.baselineEAR * 0.76;
-        this.reopenThreshold = this.baselineEAR * 0.89;
+        this.fullThreshold = this.baselineEAR * 0.78;
+        this.reopenThreshold = this.baselineEAR * 0.88;
         this.calibrated = true;
       }
       return EyeState.OPEN;
     }
 
-    if (!this.closureConfirmed) {
-      if (this.smoothedEar <= this.fullThreshold) {
-        if (this.closeCandidateFrames === 0) this.closureStartedAt = now;
-        this.closeCandidateFrames++;
-        if (this.closeCandidateFrames >= 2 || now - this.closureStartedAt >= this.MIN_CLOSED_MS) {
-          this.closureConfirmed = true;
-          this.currentState = EyeState.FULLY_CLOSED;
-          this.reopenCandidateFrames = 0;
-        }
+    if (!this.eyeWasClosed && ear <= this.fullThreshold) {
+      this.eyeWasClosed = true;
+      this.closedAt = now;
+      this.currentState = EyeState.FULLY_CLOSED;
+      return this.currentState;
+    }
+
+    if (this.eyeWasClosed) {
+      if (ear >= this.reopenThreshold) {
+        if (now - this.closedAt <= this.MAX_CLOSURE_MS) this.blinkCount++;
+        this.eyeWasClosed = false;
+        this.closedAt = 0;
+        this.currentState = EyeState.OPEN;
       } else {
-        this.closeCandidateFrames = 0;
-        this.closureStartedAt = 0;
-        this.currentState = this.smoothedEar <= this.partialThreshold
-          ? EyeState.PARTIAL_CLOSED
-          : EyeState.OPEN;
+        this.currentState = ear <= this.fullThreshold
+          ? EyeState.FULLY_CLOSED
+          : EyeState.PARTIAL_CLOSED;
       }
       return this.currentState;
     }
 
-    const closedDuration = now - this.closureStartedAt;
-    if (this.smoothedEar >= this.reopenThreshold) {
-      this.reopenCandidateFrames++;
-      if (this.reopenCandidateFrames >= 2) {
-        if (closedDuration >= this.MIN_CLOSED_MS && closedDuration <= this.MAX_CLOSED_MS) {
-          this.blinkCount++;
-        }
-        this.currentState = EyeState.OPEN;
-        this.closureConfirmed = false;
-        this.closeCandidateFrames = 0;
-        this.reopenCandidateFrames = 0;
-        this.closureStartedAt = 0;
-      }
-    } else {
-      this.reopenCandidateFrames = 0;
-      this.currentState = this.smoothedEar <= this.fullThreshold
-        ? EyeState.FULLY_CLOSED
-        : EyeState.PARTIAL_CLOSED;
-    }
-
+    this.currentState = ear <= this.partialThreshold
+      ? EyeState.PARTIAL_CLOSED
+      : EyeState.OPEN;
     return this.currentState;
   }
 
