@@ -1,4 +1,4 @@
-import { randomInt } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import {pool} from "../config/database.js";
 import nodemailer from "nodemailer";
 
@@ -14,6 +14,7 @@ export async function createOtp(userId: number, email: string) {
 
   // Use a predictable code only in development; production always stays random.
   const otp = fixedOtp ?? randomInt(100000, 1000000).toString();
+  const referenceCode = `BC-${randomBytes(3).toString("hex").toUpperCase()}`;
 
   // เก็บ OTP ลง Database
   await pool.query(
@@ -22,6 +23,7 @@ export async function createOtp(userId: number, email: string) {
     (
       user_id,
       otp_code,
+      reference_code,
       otp_type_id,
       status,
       expires_at
@@ -29,19 +31,20 @@ export async function createOtp(userId: number, email: string) {
     VALUES (
       $1,
       $2,
+      $3,
       'O0003',
       'PENDING',
       CURRENT_TIMESTAMP + INTERVAL '5 minutes'
     )
     `,
-    [userId, otp]
+    [userId, otp, referenceCode]
   );
 
   if (!fixedOtp) {
-    await sendOtpEmail(email, otp);
+    await sendOtpEmail(email, otp, referenceCode);
   }
 
-  return true;
+  return { referenceCode, expiresInSeconds: 300 };
 }
 
 const transporter = nodemailer.createTransport({
@@ -55,7 +58,8 @@ const transporter = nodemailer.createTransport({
 
 async function sendOtpEmail(
   email: string,
-  otp: string
+  otp: string,
+  referenceCode: string,
 ) {
 
   await transporter.sendMail({
@@ -63,13 +67,14 @@ async function sendOtpEmail(
     to: email,
     subject: "Your Login OTP",
 
-    text: `Your OTP is ${otp}. This OTP will expire in 5 minutes.`,
+    text: `Your OTP is ${otp}. Reference: ${referenceCode}. This OTP will expire in 5 minutes.`,
   });
 }
 
 export async function verifyOtp(
   userId: number,
-  otp: string
+  otp: string,
+  referenceCode?: string,
 ) {
 
   const result = await pool.query(
@@ -77,6 +82,7 @@ export async function verifyOtp(
     SELECT
       otp_id,
       otp_code,
+      reference_code,
       expires_at
     FROM otp_service.otp_verify
     WHERE user_id = $1
@@ -84,10 +90,11 @@ export async function verifyOtp(
       AND verified_at IS NULL
       AND status = 'PENDING'
       AND status_current IS NULL
+      AND ($2::text IS NULL OR reference_code = $2)
     ORDER BY created_at DESC
     LIMIT 1
     `,
-    [userId]
+    [userId, referenceCode ?? null]
   );
 
   if (result.rows.length === 0) {
@@ -118,4 +125,28 @@ export async function verifyOtp(
   );
 
   return true;
+}
+
+export async function resendOtp(userId: number) {
+  const userResult = await pool.query(
+    `SELECT email FROM user_service.users
+     WHERE user_id = $1 AND delete_flag = 0 AND status_active = 'ACTIVE'
+     LIMIT 1`,
+    [userId],
+  );
+  const user = userResult.rows[0];
+  if (!user) throw new Error("User not found");
+
+  const recentResult = await pool.query(
+    `SELECT created_at FROM otp_service.otp_verify
+     WHERE user_id = $1 AND otp_type_id = 'O0003'
+     ORDER BY created_at DESC LIMIT 1`,
+    [userId],
+  );
+  const createdAt = recentResult.rows[0]?.created_at;
+  if (createdAt && Date.now() - new Date(createdAt).getTime() < 60_000) {
+    throw new Error("กรุณารอ 60 วินาทีก่อนส่ง OTP ใหม่");
+  }
+
+  return createOtp(userId, user.email);
 }

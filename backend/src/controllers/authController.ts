@@ -5,6 +5,7 @@ import {
   createLoginSession,
   login,
   registerLocalUser,
+  resendLoginOtp,
   verifyOtpLogin,
 } from "../services/authService.js";
 import type { LoginUser } from "../services/authService.js";
@@ -106,9 +107,9 @@ export async function loginController(req: Request, res: Response) {
 
 export async function verifyOtpController(req: Request, res: Response) {
   try {
-    const { user_id, otp } = req.body;
+    const { user_id, otp, reference_code } = req.body;
 
-    const result = await verifyOtpLogin(user_id, otp);
+    const result = await verifyOtpLogin(user_id, otp, reference_code);
 
     res.status(200).json({
       success: true,
@@ -120,6 +121,29 @@ export async function verifyOtpController(req: Request, res: Response) {
       success: false,
       message:
         error instanceof Error ? error.message : "OTP verification failed",
+    });
+  }
+}
+
+export async function resendOtpController(req: Request, res: Response) {
+  try {
+    const userId = Number(req.body?.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid user" });
+    }
+    const result = await resendLoginOtp(userId);
+    return res.json({
+      success: true,
+      message: "ส่ง OTP ใหม่แล้ว",
+      data: {
+        reference_code: result.referenceCode,
+        expires_in_seconds: result.expiresInSeconds,
+      },
+    });
+  } catch (error) {
+    return res.status(429).json({
+      success: false,
+      message: error instanceof Error ? error.message : "ไม่สามารถส่ง OTP ใหม่ได้",
     });
   }
 }

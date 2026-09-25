@@ -58,6 +58,7 @@ function Login() {
           state: {
             user_id: result.data.user_id,
             email: email,
+            reference_code: result.data.reference_code,
             returnTo,
           },
         });

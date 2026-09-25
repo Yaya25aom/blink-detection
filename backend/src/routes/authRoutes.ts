@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { currentUserController, googleCallbackController, loginController, logout, refresh, registerController, verifyOtpController } from "../controllers/authController.js";
+import { currentUserController, googleCallbackController, loginController, logout, refresh, registerController, resendOtpController, verifyOtpController } from "../controllers/authController.js";
 import passport, { googleAuthConfigured } from "../config/passport.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
 
@@ -8,6 +8,7 @@ const router = Router();
 router.post("/refresh", refresh);
 router.post("/login", loginController);
 router.post("/register", registerController);
+router.post("/resend-otp", resendOtpController);
 router.post("/logout", logout);
 router.get("/me", authenticateToken, currentUserController);
 router.post(

@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { pool } from "../config/database.js";
 import { generateAccessToken } from "../utils/jwt.js";
-import { createOtp, verifyOtp } from "./otpService.js";
+import { createOtp, resendOtp, verifyOtp } from "./otpService.js";
 
 const REVIEW_ACCOUNT_EMAIL = "blinkcare.review.test@gmail.com";
 
@@ -21,6 +21,8 @@ export type LoginUser = {
   user_name: string;
   role_user: string;
 };
+
+export const resendLoginOtp = (userId: number) => resendOtp(userId);
 
 export const createLoginSession = async (user: LoginUser) => {
   const accessToken = generateAccessToken(String(user.user_id), user.role_user);
@@ -236,11 +238,13 @@ export async function login(email: string, password: string) {
     };
   }
 
-  await createOtp(user.user_id, user.email);
+  const otpResult = await createOtp(user.user_id, user.email);
 
   return {
     requiresOtp: true,
     user_id: user.user_id,
+    reference_code: otpResult.referenceCode,
+    expires_in_seconds: otpResult.expiresInSeconds,
   };
 
   //   // 5. สร้าง JWT
@@ -272,9 +276,9 @@ export async function login(email: string, password: string) {
   //   };
 }
 
-export async function verifyOtpLogin(userId: number, otp: string) {
+export async function verifyOtpLogin(userId: number, otp: string, referenceCode?: string) {
   // ตรวจ OTP
-  await verifyOtp(userId, otp);
+  await verifyOtp(userId, otp, referenceCode);
 
   // ดึงข้อมูล User
   const result = await pool.query(
