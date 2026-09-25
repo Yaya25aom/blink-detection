@@ -1,0 +1,44 @@
+.downloads-page { min-height: 100vh; padding: 112px 34px 48px; background: #f7f9fc; color: #17233f; }
+.downloads-heading { max-width: 1180px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.downloads-heading span, .download-section-title small { color: #4e63e8; font-size: 12px; font-weight: 700; }
+.downloads-heading h1 { margin: 4px 0; font-size: 30px; letter-spacing: 0; }
+.downloads-heading p, .download-section-title p { color: #6d7891; font-size: 14px; }
+.downloads-heading button { min-height: 42px; padding: 0 15px; display: flex; align-items: center; gap: 8px; border: 1px solid #dce3ef; border-radius: 7px; background: #fff; color: #35415d; cursor: pointer; }
+.install-warning, .setup-status, .download-section, .setup-footer { max-width: 1180px; margin-left: auto; margin-right: auto; }
+.install-warning { margin-bottom: 16px; padding: 15px 18px; display: flex; gap: 12px; border: 1px solid #f1c7ca; border-radius: 7px; background: #fff3f3; color: #a63d46; }
+.install-warning > svg { margin-top: 2px; font-size: 22px; flex: none; }
+.install-warning p { margin-top: 2px; color: #7d555c; font-size: 13px; }
+.setup-status { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 18px; }
+.setup-status > div { min-height: 78px; padding: 15px 17px; display: grid; grid-template-columns: 42px 1fr 30px; align-items: center; gap: 12px; border: 1px solid #e0e6ef; border-radius: 7px; background: #fff; }
+.setup-status > div > svg { font-size: 25px; color: #5166df; }
+.setup-status strong, .setup-status small { display: block; }
+.setup-status small { margin-top: 3px; color: #78849b; }
+.setup-status i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; font-style: normal; }
+.setup-status .ready i { color: #178b62; background: #def5ea; }
+.setup-status .missing i { color: #c07a20; background: #fff1d9; }
+.download-section { margin-bottom: 18px; padding: 22px; border: 1px solid #e1e7f0; border-radius: 8px; background: #fff; }
+.download-section-title { display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 14px; margin-bottom: 18px; }
+.download-section-title > span { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 7px; background: #edf1ff; color: #5368e7; font-size: 23px; }
+.download-section-title h2 { margin: 2px 0; font-size: 20px; letter-spacing: 0; }
+.platform-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.platform-list article { min-height: 92px; padding: 15px; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 12px; border: 1px solid #e2e7ef; border-radius: 7px; background: #f5f7fa; }
+.platform-list article.recommended { border-color: #aeb9f4; background: #f3f5ff; }
+.platform-list article > svg { font-size: 27px; color: #445ccf; }
+.platform-list h3 { font-size: 15px; }
+.platform-list p, .platform-list small { color: #768299; font-size: 12px; }
+.platform-list small { color: #3859d2; }
+.platform-list a, .primary-download, .platform-list button { min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 6px; background: #4f5fe7; color: #fff; font-weight: 600; text-decoration: none; }
+.platform-list button:disabled { background: #e4e8ef; color: #8490a4; }
+.mobile-note { margin-top: 13px; display: flex; align-items: center; gap: 7px; color: #6f7b91; font-size: 12px; }
+.install-steps { display: grid; gap: 0; list-style: none; }
+.install-steps li { min-height: 70px; padding: 12px 4px; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; border-top: 1px solid #edf0f5; }
+.install-steps b { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 6px; color: #5062d8; background: #eef1ff; }
+.install-steps strong { font-size: 14px; }
+.install-steps p { margin-top: 3px; color: #758198; font-size: 12px; }
+.install-steps code { padding: 2px 5px; border-radius: 4px; background: #edf0f5; color: #33415e; }
+.install-steps button { min-height: 35px; padding: 0 11px; display: flex; align-items: center; gap: 6px; border: 1px solid #d9e0ec; border-radius: 6px; background: #fff; color: #4e60cb; cursor: pointer; }
+.setup-footer { min-height: 78px; padding: 16px 20px; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 12px; border-radius: 8px; background: #edf8f4; }
+.setup-footer > svg { font-size: 27px; color: #19916b; }
+.setup-footer p { color: #6e7e79; font-size: 12px; }
+.setup-footer a { display: flex; align-items: center; gap: 6px; color: #2e58cc; text-decoration: none; font-weight: 600; }
+@media (max-width: 760px) { .downloads-page { padding: 24px 14px 100px; } .downloads-heading { align-items: flex-start; } .downloads-heading button { font-size: 0; padding: 0 12px; } .setup-status, .platform-list { grid-template-columns: 1fr; } .download-section { padding: 16px; } .download-section-title { grid-template-columns: 42px 1fr; } .primary-download { grid-column: 1 / -1; } .install-steps li { grid-template-columns: 32px 1fr; } .install-steps button { grid-column: 2; width: fit-content; } .setup-footer { grid-template-columns: 34px 1fr; } .setup-footer a { grid-column: 2; } }

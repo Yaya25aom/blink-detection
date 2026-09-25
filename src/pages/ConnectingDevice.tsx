@@ -15,55 +15,18 @@ import {
   LuWifi,
 } from "react-icons/lu";
 import { API_URL } from "../services/apiClient";
+import {
+  emptyDeviceStatus,
+  requestDeviceStatus,
+  type DeviceStatus,
+} from "../services/deviceStatus";
 import "./ConnectingDevice.css";
-
-type ExtensionStatus = {
-  installed: boolean;
-  connected: boolean;
-  helperConnected: boolean;
-  monitoring: boolean;
-  activeApp: string | null;
-  version: string | null;
-};
-
-const emptyExtensionStatus: ExtensionStatus = {
-  installed: false,
-  connected: false,
-  helperConnected: false,
-  monitoring: false,
-  activeApp: null,
-  version: null,
-};
-
-const waitForExtensionStatus = () => new Promise<ExtensionStatus>((resolve) => {
-  const timeout = window.setTimeout(() => {
-    window.removeEventListener("blinkcare:device-status-response", receive as EventListener);
-    resolve(emptyExtensionStatus);
-  }, 800);
-
-  const receive = (event: CustomEvent) => {
-    window.clearTimeout(timeout);
-    window.removeEventListener("blinkcare:device-status-response", receive as EventListener);
-    const detail = event.detail ?? {};
-    resolve({
-      installed: detail.installed === true,
-      connected: detail.connected === true,
-      helperConnected: detail.helperConnected === true,
-      monitoring: detail.monitoring === true,
-      activeApp: typeof detail.activeApp === "string" ? detail.activeApp : null,
-      version: typeof detail.version === "string" ? detail.version : null,
-    });
-  };
-
-  window.addEventListener("blinkcare:device-status-response", receive as EventListener);
-  window.dispatchEvent(new Event("blinkcare:device-status-request"));
-});
 
 export default function ConnectingDevice() {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCamera, setSelectedCamera] = useState(localStorage.getItem("blinkcareCameraId") ?? "");
   const [cameraPermission, setCameraPermission] = useState<PermissionState | "unknown">("unknown");
-  const [extension, setExtension] = useState<ExtensionStatus>(emptyExtensionStatus);
+  const [extension, setExtension] = useState<DeviceStatus>(emptyDeviceStatus);
   const [apiConnected, setApiConnected] = useState(false);
   const [checking, setChecking] = useState(false);
 
@@ -71,7 +34,7 @@ export default function ConnectingDevice() {
     setChecking(true);
     const [devices, extensionStatus, apiStatus] = await Promise.all([
       navigator.mediaDevices?.enumerateDevices().catch(() => []) ?? Promise.resolve([]),
-      waitForExtensionStatus(),
+      requestDeviceStatus(800),
       fetch(`${new URL(API_URL).origin}/health`).then((response) => response.ok).catch(() => false),
     ]);
     const videoDevices = devices.filter((device) => device.kind === "videoinput");

@@ -20,6 +20,8 @@ import {
   publishDetectionTelemetry,
 } from "../services/detectionTelemetry";
 import { LuMonitor, LuChrome, LuCode, LuGlobe } from "react-icons/lu";
+import { useNavigate } from "react-router-dom";
+import { requestDeviceStatus } from "../services/deviceStatus";
 
 type ActiveDetection = {
   session_id: string;
@@ -89,6 +91,7 @@ const sendExtensionCommand = (action: "START" | "STOP" | "PAUSE" | "RESUME") =>
   });
 
 export default function Detection() {
+  const navigate = useNavigate();
   const { videoRef, cameraOn, startCamera, stopCamera } = useCamera();
 
   // =====================================================
@@ -197,6 +200,18 @@ export default function Detection() {
     }
     setExtensionCommandPending(true);
     try {
+      if (action === "START") {
+        const status = await requestDeviceStatus();
+        const missing = [
+          ...(!status.installed || !status.connected ? ["extension"] : []),
+          ...(!status.helperConnected ? ["helper"] : []),
+        ];
+        if (missing.length > 0) {
+          window.alert("ต้องติดตั้งและเปิด BlinkCare Extension กับ Blink Helper ให้ครบก่อนเริ่มตรวจจับ");
+          navigate(`/downloads?missing=${missing.join(",")}`);
+          return;
+        }
+      }
       await sendExtensionCommand(action);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "ไม่สามารถสั่งงาน Extension ได้");

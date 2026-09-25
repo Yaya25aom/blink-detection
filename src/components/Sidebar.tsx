@@ -19,6 +19,7 @@ import {
   LuLogOut,
   LuChevronDown,
   LuChevronUp,
+  LuDownload,
 } from "react-icons/lu";
 
 type Props = {
@@ -57,6 +58,10 @@ const bottomMenus = [
   {
     name: "Connecting Device",
     icon: <LuSettings2 />,
+  },
+  {
+    name: "Downloads",
+    icon: <LuDownload />,
   },
   {
     name: "Profile",
