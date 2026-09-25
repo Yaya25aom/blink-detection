@@ -44,6 +44,10 @@ type ExtensionDetection = {
   personPresent: boolean;
   lightingLevel: "GOOD" | "DARK" | "UNKNOWN";
   activeApp: string | null;
+  currentEar: number;
+  baselineEar: number;
+  closeThreshold: number;
+  calibrated: boolean;
 };
 
 const sendExtensionCommand = (action: "START" | "STOP" | "PAUSE" | "RESUME") =>
@@ -92,6 +96,9 @@ export default function Detection() {
   // =====================================================
 
   const [ear, setEar] = useState(0);
+  const [baselineEar, setBaselineEar] = useState(0);
+  const [closeThreshold, setCloseThreshold] = useState(0);
+  const [calibrated, setCalibrated] = useState(false);
 
   const [blinkCount, setBlinkCount] = useState(0);
 
@@ -228,6 +235,10 @@ export default function Detection() {
       setDuration((current) => isNewSession ? detail.activeSeconds : Math.max(current, detail.activeSeconds));
       presenceActiveSeconds.current = detail.activeSeconds;
       setAverageBlinkPerMinute(detail.blinksPerMinute);
+      setEar(detail.currentEar);
+      setBaselineEar(detail.baselineEar);
+      setCloseThreshold(detail.closeThreshold);
+      setCalibrated(detail.calibrated);
       if (detail.activeApp) {
         setCurrentApp(detail.activeApp);
         currentAppRef.current = detail.activeApp;
@@ -1414,6 +1425,11 @@ export default function Detection() {
           <p>EAR</p>
 
           <h2>{ear.toFixed(3)}</h2>
+          <small>
+            {calibrated
+              ? `Open baseline ${baselineEar.toFixed(3)} · Close below ${closeThreshold.toFixed(3)}`
+              : "Calibrating your natural eye opening..."}
+          </small>
         </div>
 
         {/* =================================================

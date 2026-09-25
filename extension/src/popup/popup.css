@@ -143,6 +143,11 @@ button {
   gap: 10px;
   margin: 12px 0;
 }
+.ear-status { margin: 10px 0; padding: 10px; border-radius: 7px; background: #f5f7fb; }
+.ear-status > div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 11px; }
+.ear-status span, .ear-status small { color: #79849a; }
+.ear-status strong { color: #26334d; }
+.ear-status small { display: block; margin-top: 6px; line-height: 1.4; }
 
 .active-app-status {
   display: flex;

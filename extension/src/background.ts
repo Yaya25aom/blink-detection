@@ -39,7 +39,7 @@ type ExtensionMessage =
   | { type: "BLINKCARE_ALERT"; title: string; message: string; category?: string }
   | { type: "BLINKCARE_BLINK_DETECTED"; ear: number; durationMs: number }
   | { type: "BLINKCARE_ERROR"; message: string }
-  | { type: "BLINKCARE_DETECTION_UPDATE"; blinkCount: number; blinksPerMinute: number; activeSeconds: number; personPresent: boolean; lightingLevel: "GOOD" | "DARK" | "UNKNOWN"; paused?: boolean }
+  | { type: "BLINKCARE_DETECTION_UPDATE"; blinkCount: number; blinksPerMinute: number; activeSeconds: number; personPresent: boolean; lightingLevel: "GOOD" | "DARK" | "UNKNOWN"; paused?: boolean; currentEar?: number; baselineEar?: number; closeThreshold?: number; calibrated?: boolean }
   | { type: "BLINKCARE_POPUP_START" }
   | { type: "BLINKCARE_POPUP_STOP" }
   | { type: "BLINKCARE_POPUP_PAUSE" }
@@ -555,6 +555,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       personPresent: message.personPresent,
       lightingLevel: message.lightingLevel,
       blinkcarePaused: message.paused === true,
+      currentEar: Number(message.currentEar ?? 0),
+      baselineEar: Number(message.baselineEar ?? 0),
+      closeThreshold: Number(message.closeThreshold ?? 0),
+      blinkcareCalibrated: message.calibrated === true,
     });
     planOperation = planOperation
       .then(() => processPlanMeasures(message.activeSeconds, message.personPresent))
@@ -665,6 +669,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       "personPresent",
       "lightingLevel",
       "blinkcareActiveApp",
+      "currentEar",
+      "baselineEar",
+      "closeThreshold",
+      "blinkcareCalibrated",
     ]).then((stored) => sendResponse({
       ok: true,
       userId: stored.blinkcareAuthenticatedUserId ?? null,
@@ -677,6 +685,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       personPresent: stored.personPresent === true,
       lightingLevel: stored.lightingLevel ?? "UNKNOWN",
       activeApp: stored.blinkcareActiveApp ?? null,
+      currentEar: Number(stored.currentEar ?? 0),
+      baselineEar: Number(stored.baselineEar ?? 0),
+      closeThreshold: Number(stored.closeThreshold ?? 0),
+      calibrated: stored.blinkcareCalibrated === true,
     })).catch((error: unknown) => sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : String(error),
@@ -689,7 +701,17 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       if (!auth) throw new Error("AUTH_REQUIRED");
       await startBackendSession(auth);
       await chrome.storage.local.remove("blinkcareLastError");
-      await chrome.storage.local.set({ blinkCount: 0, blinksPerMinute: 0, activeSeconds: 0, personPresent: false, blinkcarePaused: false });
+      await chrome.storage.local.set({
+        blinkCount: 0,
+        blinksPerMinute: 0,
+        activeSeconds: 0,
+        personPresent: false,
+        blinkcarePaused: false,
+        currentEar: 0,
+        baselineEar: 0,
+        closeThreshold: 0,
+        blinkcareCalibrated: false,
+      });
       previousActiveSeconds = 0;
       continuousActiveSeconds = 0;
       lastHelperPollAt = 0;

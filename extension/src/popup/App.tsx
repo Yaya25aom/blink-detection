@@ -53,6 +53,10 @@ export default function App() {
 
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [helperConnected, setHelperConnected] = useState(false);
+  const [currentEar, setCurrentEar] = useState(0);
+  const [baselineEar, setBaselineEar] = useState(0);
+  const [closeThreshold, setCloseThreshold] = useState(0);
+  const [calibrated, setCalibrated] = useState(false);
 
   // ================================
   // Load data from Chrome Storage
@@ -70,6 +74,10 @@ export default function App() {
         "blinkcareAuthenticatedUserId",
         "blinkcareActiveApp",
         "blinkcareHelperConnected",
+        "currentEar",
+        "baselineEar",
+        "closeThreshold",
+        "blinkcareCalibrated",
       ]);
 
       setState(
@@ -107,6 +115,10 @@ export default function App() {
       );
       setActiveApp(typeof stored.blinkcareActiveApp === "string" ? stored.blinkcareActiveApp : null);
       setHelperConnected(stored.blinkcareHelperConnected === true);
+      setCurrentEar(Number(stored.currentEar ?? 0));
+      setBaselineEar(Number(stored.baselineEar ?? 0));
+      setCloseThreshold(Number(stored.closeThreshold ?? 0));
+      setCalibrated(stored.blinkcareCalibrated === true);
     };
 
     void loadData();
@@ -198,6 +210,11 @@ export default function App() {
       if (changes.blinkcareHelperConnected) {
         setHelperConnected(changes.blinkcareHelperConnected.newValue === true);
       }
+
+      if (changes.currentEar) setCurrentEar(Number(changes.currentEar.newValue ?? 0));
+      if (changes.baselineEar) setBaselineEar(Number(changes.baselineEar.newValue ?? 0));
+      if (changes.closeThreshold) setCloseThreshold(Number(changes.closeThreshold.newValue ?? 0));
+      if (changes.blinkcareCalibrated) setCalibrated(changes.blinkcareCalibrated.newValue === true);
     };
 
     chrome.storage.onChanged.addListener(
@@ -440,6 +457,12 @@ export default function App() {
             </span>
           </div>
 
+        </section>
+        <section className="ear-status">
+          <div><span>EAR ปัจจุบัน</span><strong>{currentEar.toFixed(3)}</strong></div>
+          <div><span>Baseline ตอนลืมตา</span><strong>{baselineEar > 0 ? baselineEar.toFixed(3) : "-"}</strong></div>
+          <div><span>เกณฑ์ปิดตา</span><strong>{closeThreshold > 0 ? closeThreshold.toFixed(3) : "-"}</strong></div>
+          <small>{calibrated ? "ปรับเทียบตามดวงตาของคุณแล้ว" : "กำลังปรับเทียบ กรุณามองกล้องและลืมตาตามปกติ"}</small>
         </section>
         </>
       )}

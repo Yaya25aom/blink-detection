@@ -13,7 +13,7 @@ const percentile = (values: number[], ratio: number) => {
 
 export class BlinkDetector {
   private calibrationFrames: number[] = [];
-  private readonly CALIBRATION_FRAME_COUNT = 100;
+  private readonly CALIBRATION_FRAME_COUNT = 60;
   private recentEar: number[] = [];
   private baselineEAR = 0;
   private partialThreshold = 0;
@@ -34,7 +34,7 @@ export class BlinkDetector {
     if (!Number.isFinite(ear) || ear <= 0.06 || ear >= 0.6) return this.currentState;
 
     this.recentEar.push(ear);
-    if (this.recentEar.length > 5) this.recentEar.shift();
+    if (this.recentEar.length > 3) this.recentEar.shift();
     const smoothedEar = percentile(this.recentEar, 0.5);
 
     if (!this.calibrated) {
@@ -42,9 +42,9 @@ export class BlinkDetector {
       if (this.calibrationFrames.length >= this.CALIBRATION_FRAME_COUNT) {
         // The upper percentile estimates this user's naturally open eye.
         this.baselineEAR = percentile(this.calibrationFrames, 0.8);
-        this.partialThreshold = this.baselineEAR * 0.76;
-        this.fullThreshold = this.baselineEAR * 0.62;
-        this.reopenThreshold = this.baselineEAR * 0.84;
+        this.partialThreshold = this.baselineEAR * 0.80;
+        this.fullThreshold = this.baselineEAR * 0.72;
+        this.reopenThreshold = this.baselineEAR * 0.86;
         this.calibrated = true;
       }
       return EyeState.OPEN;

@@ -20,6 +20,7 @@ let activeStartedAt = 0;
 let blinkTimestamps: number[] = [];
 let activeSeconds = 0;
 let lightingLevel: "GOOD" | "DARK" | "UNKNOWN" = "UNKNOWN";
+let currentEar = 0;
 let darkStartedAt = 0;
 const alertCooldowns = new Map<string, number>();
 const lightCanvas = document.createElement("canvas");
@@ -92,6 +93,10 @@ const publishDetectionUpdate = () => {
     personPresent,
     lightingLevel,
     paused,
+    currentEar,
+    baselineEar: detector.getBaselineEAR(),
+    closeThreshold: detector.getFullThreshold(),
+    calibrated: detector.isCalibrated(),
   });
 };
 
@@ -108,6 +113,7 @@ const detectionLoop = async () => {
       if (activeStartedAt === 0) activeStartedAt = now;
       const eyes = extractEyeLandmarks(face);
       const averageEar = calculateAverageEAR(eyes.leftEye, eyes.rightEye);
+      currentEar = averageEar;
       detector.update(averageEar);
       const total = detector.getBlinkCount();
       if (total > lastBlinkCount) {
@@ -194,6 +200,7 @@ const startMonitoring = async () => {
   blinkTimestamps = [];
   activeSeconds = 0;
   lightingLevel = "UNKNOWN";
+  currentEar = 0;
   darkStartedAt = 0;
 
   monitoring = true;
@@ -229,6 +236,11 @@ const stopMonitoring = () => {
     activeSeconds,
     personPresent: false,
     lightingLevel: "UNKNOWN",
+    paused: false,
+    currentEar,
+    baselineEar: detector.getBaselineEAR(),
+    closeThreshold: detector.getFullThreshold(),
+    calibrated: detector.isCalibrated(),
   });
   void chrome.runtime.sendMessage({
     type: "BLINKCARE_STATUS",
