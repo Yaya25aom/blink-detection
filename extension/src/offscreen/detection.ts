@@ -21,6 +21,7 @@ let blinkTimestamps: number[] = [];
 let activeSeconds = 0;
 let lightingLevel: "GOOD" | "DARK" | "UNKNOWN" = "UNKNOWN";
 let currentEar = 0;
+let lastRealtimePublishAt = 0;
 let darkStartedAt = 0;
 const alertCooldowns = new Map<string, number>();
 const lightCanvas = document.createElement("canvas");
@@ -76,14 +77,14 @@ const sendAlert = (key: string, title: string, message: string) => {
   });
 };
 
-const publishDetectionUpdate = () => {
+const publishDetectionUpdate = (countActiveSecond = false) => {
   const now = Date.now();
   const personPresent = !paused && lastFaceSeenAt > 0 && now - lastFaceSeenAt <= 1_500;
   blinkTimestamps = blinkTimestamps.filter(
     (timestamp) => timestamp >= now - 60_000,
   );
 
-  if (personPresent) activeSeconds += 1;
+  if (countActiveSecond && personPresent) activeSeconds += 1;
 
   void chrome.runtime.sendMessage({
     type: "BLINKCARE_DETECTION_UPDATE",
@@ -124,6 +125,12 @@ const detectionLoop = async () => {
           ear: averageEar,
           durationMs: 0,
         });
+        lastRealtimePublishAt = now;
+        publishDetectionUpdate(false);
+      }
+      if (now - lastRealtimePublishAt >= 100) {
+        lastRealtimePublishAt = now;
+        publishDetectionUpdate(false);
       }
       blinkTimestamps = blinkTimestamps.filter(
         (timestamp) => timestamp >= now - 60_000,
@@ -163,7 +170,7 @@ const detectionLoop = async () => {
 
   }
 
-  detectionTimer = window.setTimeout(() => void detectionLoop(), 50);
+  detectionTimer = window.setTimeout(() => void detectionLoop(), 16);
 };
 
 const startMonitoring = async () => {
@@ -201,6 +208,7 @@ const startMonitoring = async () => {
   activeSeconds = 0;
   lightingLevel = "UNKNOWN";
   currentEar = 0;
+  lastRealtimePublishAt = 0;
   darkStartedAt = 0;
 
   monitoring = true;
@@ -214,7 +222,7 @@ const startMonitoring = async () => {
   console.log("[BlinkCare] 7. Detection started");
 
   publishDetectionUpdate();
-  presenceTimer = window.setInterval(publishDetectionUpdate, 1000);
+  presenceTimer = window.setInterval(() => publishDetectionUpdate(true), 1000);
   void detectionLoop();
 };
 

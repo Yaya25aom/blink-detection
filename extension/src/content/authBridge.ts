@@ -103,7 +103,7 @@ const syncLiveDetection = async () => {
 };
 
 void syncLiveDetection();
-setInterval(() => void syncLiveDetection(), 1_000);
+setInterval(() => void syncLiveDetection(), 250);
 
 window.addEventListener("blinkcare:extension-command", (event: Event) => {
   const detail = (event as CustomEvent<{ requestId?: string; action?: "START" | "STOP" | "PAUSE" | "RESUME" }>).detail;

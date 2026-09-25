@@ -13,8 +13,8 @@ const percentile = (values: number[], ratio: number) => {
 
 export class BlinkDetector {
   private calibrationFrames: number[] = [];
-  private readonly CALIBRATION_FRAME_COUNT = 60;
-  private recentEar: number[] = [];
+  private readonly CALIBRATION_FRAME_COUNT = 45;
+  private smoothedEar = 0;
   private baselineEAR = 0;
   private partialThreshold = 0;
   private fullThreshold = 0;
@@ -22,68 +22,71 @@ export class BlinkDetector {
   private calibrated = false;
   private currentState: EyeState = EyeState.OPEN;
   private blinkCount = 0;
-  private closedFrameCount = 0;
-  private reopenFrameCount = 0;
-  private sawFullClosure = false;
-  private openStableFrames = 4;
-  private readonly MIN_CLOSED_FRAMES = 2;
-  private readonly MAX_CLOSED_FRAMES = 14;
-  private readonly REQUIRED_REOPEN_FRAMES = 2;
+  private closeCandidateFrames = 0;
+  private reopenCandidateFrames = 0;
+  private closureStartedAt = 0;
+  private closureConfirmed = false;
+  private readonly MIN_CLOSED_MS = 45;
+  private readonly MAX_CLOSED_MS = 1_200;
 
-  public update(ear: number): EyeState {
-    if (!Number.isFinite(ear) || ear <= 0.06 || ear >= 0.6) return this.currentState;
+  public update(ear: number, now = performance.now()): EyeState {
+    if (!Number.isFinite(ear) || ear <= 0.04 || ear >= 0.65) return this.currentState;
 
-    this.recentEar.push(ear);
-    if (this.recentEar.length > 3) this.recentEar.shift();
-    const smoothedEar = percentile(this.recentEar, 0.5);
+    // A responsive EMA removes single-frame landmark noise without swallowing
+    // a normal 100-150 ms blink like a wide median window can.
+    this.smoothedEar = this.smoothedEar === 0
+      ? ear
+      : this.smoothedEar * 0.25 + ear * 0.75;
 
     if (!this.calibrated) {
-      this.calibrationFrames.push(smoothedEar);
+      this.calibrationFrames.push(this.smoothedEar);
       if (this.calibrationFrames.length >= this.CALIBRATION_FRAME_COUNT) {
-        // The upper percentile estimates this user's naturally open eye.
-        this.baselineEAR = percentile(this.calibrationFrames, 0.8);
-        this.partialThreshold = this.baselineEAR * 0.80;
-        this.fullThreshold = this.baselineEAR * 0.72;
-        this.reopenThreshold = this.baselineEAR * 0.86;
+        this.baselineEAR = percentile(this.calibrationFrames, 0.85);
+        this.partialThreshold = this.baselineEAR * 0.84;
+        this.fullThreshold = this.baselineEAR * 0.76;
+        this.reopenThreshold = this.baselineEAR * 0.89;
         this.calibrated = true;
       }
       return EyeState.OPEN;
     }
 
-    if (smoothedEar <= this.fullThreshold) {
-      this.currentState = EyeState.FULLY_CLOSED;
-    } else if (smoothedEar < this.reopenThreshold) {
-      this.currentState = EyeState.PARTIAL_CLOSED;
-    } else {
-      this.currentState = EyeState.OPEN;
-    }
-
-    if (this.currentState !== EyeState.OPEN) {
-      this.reopenFrameCount = 0;
-      if (this.openStableFrames >= 3) {
-        if (this.currentState === EyeState.FULLY_CLOSED) this.sawFullClosure = true;
-        this.closedFrameCount++;
+    if (!this.closureConfirmed) {
+      if (this.smoothedEar <= this.fullThreshold) {
+        if (this.closeCandidateFrames === 0) this.closureStartedAt = now;
+        this.closeCandidateFrames++;
+        if (this.closeCandidateFrames >= 2 || now - this.closureStartedAt >= this.MIN_CLOSED_MS) {
+          this.closureConfirmed = true;
+          this.currentState = EyeState.FULLY_CLOSED;
+          this.reopenCandidateFrames = 0;
+        }
+      } else {
+        this.closeCandidateFrames = 0;
+        this.closureStartedAt = 0;
+        this.currentState = this.smoothedEar <= this.partialThreshold
+          ? EyeState.PARTIAL_CLOSED
+          : EyeState.OPEN;
       }
       return this.currentState;
     }
 
-    this.openStableFrames++;
-    if (this.closedFrameCount > 0) {
-      this.reopenFrameCount++;
-      if (this.reopenFrameCount >= this.REQUIRED_REOPEN_FRAMES) {
-        if (
-          this.closedFrameCount >= this.MIN_CLOSED_FRAMES &&
-          this.closedFrameCount <= this.MAX_CLOSED_FRAMES &&
-          this.sawFullClosure
-        ) {
+    const closedDuration = now - this.closureStartedAt;
+    if (this.smoothedEar >= this.reopenThreshold) {
+      this.reopenCandidateFrames++;
+      if (this.reopenCandidateFrames >= 2) {
+        if (closedDuration >= this.MIN_CLOSED_MS && closedDuration <= this.MAX_CLOSED_MS) {
           this.blinkCount++;
         }
-        // A held closure is discarded and resets once only after a real reopen.
-        this.closedFrameCount = 0;
-        this.reopenFrameCount = 0;
-        this.sawFullClosure = false;
-        this.openStableFrames = 0;
+        this.currentState = EyeState.OPEN;
+        this.closureConfirmed = false;
+        this.closeCandidateFrames = 0;
+        this.reopenCandidateFrames = 0;
+        this.closureStartedAt = 0;
       }
+    } else {
+      this.reopenCandidateFrames = 0;
+      this.currentState = this.smoothedEar <= this.fullThreshold
+        ? EyeState.FULLY_CLOSED
+        : EyeState.PARTIAL_CLOSED;
     }
 
     return this.currentState;
