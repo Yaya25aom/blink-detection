@@ -108,6 +108,7 @@ export default function Detection() {
   const continuousPresenceSeconds = useRef(0);
   const recentBlinkTimestamps = useRef<number[]>([]);
   const lightCanvas = useRef<HTMLCanvasElement | null>(null);
+  const lastLiveSyncAt = useRef(0);
 
   // =====================================================
   // Detection Session ID
@@ -133,7 +134,10 @@ export default function Detection() {
       if (localSessionRef.current) return;
       try {
         const response = await apiFetch("/detection/active");
-        if (!response.ok) return;
+        if (!response.ok) {
+          console.error("Active detection sync failed:", response.status, await response.text());
+          return;
+        }
         const payload = await response.json() as { data: ActiveDetection | null };
         const active = payload.data;
         const fresh = active?.live_updated_at
@@ -196,6 +200,7 @@ export default function Detection() {
         lightingLevel: "UNKNOWN",
         timestamp: Date.now(),
       });
+
       return;
     }
 
@@ -254,6 +259,22 @@ export default function Detection() {
         lightingLevel,
         timestamp: Date.now(),
       });
+
+      const now = Date.now();
+      if (detectionId && localSessionRef.current && now - lastLiveSyncAt.current >= 2_000) {
+        lastLiveSyncAt.current = now;
+        void apiFetch("/detection/live", {
+          method: "PATCH",
+          body: JSON.stringify({
+            session_id: detectionId,
+            active_seconds: presenceActiveSeconds.current,
+            total_blinks: sessionBlinkCount.current,
+            blinks_per_minute: recentBlinkTimestamps.current.length,
+            person_present: personPresent,
+            lighting_level: lightingLevel,
+          }),
+        }).catch((error) => console.error("Unable to sync live detection state:", error));
+      }
     }, 1000);
 
     return () => window.clearInterval(presenceTimer);
@@ -325,6 +346,10 @@ export default function Detection() {
         const error = await response.json();
 
         console.error("Start detection failed:", error);
+
+        if (response.status === 409) {
+          window.alert(error.message || "มี Detection Session กำลังทำงานอยู่แล้ว");
+        }
 
         return null;
       }

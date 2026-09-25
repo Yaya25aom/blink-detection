@@ -5,6 +5,7 @@ import {
   endDetectionSession,
   getActiveDetectionSession,
   updateDetectionLiveState,
+  ActiveDetectionSessionError,
 } from "../services/detectionService.js";
 
 export const startDetection = async (
@@ -48,6 +49,14 @@ export const startDetection = async (
     });
 
   } catch (error) {
+
+    if (error instanceof ActiveDetectionSessionError) {
+      return res.status(409).json({
+        message: "บัญชีนี้กำลังมีการตรวจจับอยู่ กรุณาสิ้นสุด Session ปัจจุบันก่อน",
+        code: "ACTIVE_DETECTION_SESSION",
+        session_id: error.sessionId,
+      });
+    }
 
     console.error(
       "Start detection error:",

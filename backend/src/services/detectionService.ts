@@ -5,23 +5,60 @@ export const createDetectionSession = async (
   user_id: string,
   source: "WEBSITE" | "EXTENSION" = "WEBSITE",
 ) => {
-  const result = await pool.query(
-    `
-    INSERT INTO detection_service.detection_session
-    (
-      user_id,
-      started_at,
-      detection_source,
-      live_updated_at
-    )
-    VALUES ($1, CURRENT_TIMESTAMP, $2, CURRENT_TIMESTAMP)
-    RETURNING *
-    `,
-    [user_id, source],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`detection:${user_id}`]);
+    const active = await client.query(
+      `SELECT session_id, live_updated_at
+       FROM detection_service.detection_session
+       WHERE user_id = $1 AND ended_at IS NULL
+       ORDER BY started_at DESC LIMIT 1`,
+      [user_id],
+    );
 
-  return result.rows[0];
+    if (active.rows[0]) {
+      const updatedAt = active.rows[0].live_updated_at
+        ? new Date(active.rows[0].live_updated_at).getTime()
+        : 0;
+      if (Date.now() - updatedAt < 15_000) {
+        throw new ActiveDetectionSessionError(active.rows[0].session_id);
+      }
+
+      await client.query(
+        `UPDATE detection_service.detection_session
+         SET ended_at = CURRENT_TIMESTAMP,
+             duration_seconds = live_active_seconds,
+             total_blinks = live_total_blinks,
+             average_blinks_per_minute = live_blinks_per_minute
+         WHERE user_id = $1 AND ended_at IS NULL`,
+        [user_id],
+      );
+    }
+
+    const result = await client.query(
+      `INSERT INTO detection_service.detection_session
+       (user_id, started_at, detection_source, live_updated_at)
+       VALUES ($1, CURRENT_TIMESTAMP, $2, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [user_id, source],
+    );
+    await client.query("COMMIT");
+    return result.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
+
+export class ActiveDetectionSessionError extends Error {
+  constructor(public readonly sessionId: string) {
+    super("An active detection session already exists");
+    this.name = "ActiveDetectionSessionError";
+  }
+}
 
 type DetectionLiveState = {
   user_id: string;
@@ -56,6 +93,7 @@ export const getActiveDetectionSession = async (user_id: string) => {
        live_updated_at
      FROM detection_service.detection_session
      WHERE user_id = $1 AND ended_at IS NULL
+       AND live_updated_at > CURRENT_TIMESTAMP - INTERVAL '15 seconds'
      ORDER BY started_at DESC LIMIT 1`,
     [user_id],
   );
