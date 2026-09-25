@@ -15,7 +15,9 @@ export default function GoogleCallback() {
 
     if (!accessToken || !refreshToken) return;
     saveTokens(accessToken, refreshToken);
-    navigate("/", { replace: true });
+    const returnTo = sessionStorage.getItem("blinkcareAuthReturnTo") || "/";
+    sessionStorage.removeItem("blinkcareAuthReturnTo");
+    navigate(returnTo, { replace: true });
   }, [accessToken, navigate, refreshToken]);
 
   return <main className="register-page"><section className="register-card google-callback"><div className="register-brand">BlinkCare</div><h1>{error ? "เข้าสู่ระบบไม่สำเร็จ" : "กำลังเชื่อมต่อ Google"}</h1><p>{error || "กรุณารอสักครู่ ระบบกำลังเตรียมบัญชีของคุณ"}</p>{error && <button onClick={() => navigate("/auth", { replace: true })}>กลับไปหน้าเข้าสู่ระบบ</button>}</section></main>;

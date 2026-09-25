@@ -172,6 +172,7 @@ export async function findOrCreateGoogleUser(profile: {
 }
 
 export async function login(email: string, password: string) {
+  const normalizedEmail = email.trim().toLowerCase();
   // 1. หา User
   const userResult = await pool.query(
     `
@@ -182,10 +183,11 @@ export async function login(email: string, password: string) {
       role_user,
       status_active
     FROM user_service.users
-    WHERE email = $1
+    WHERE LOWER(email) = $1
+      AND delete_flag = 0
     LIMIT 1
     `,
-    [email],
+    [normalizedEmail],
   );
 
   if (userResult.rows.length === 0) {

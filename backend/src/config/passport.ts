@@ -17,7 +17,7 @@ if (googleAuthConfigured) {
       if (!email) return done(new Error("Google account did not provide an email"));
       const user = await findOrCreateGoogleUser({
         providerUserId: profile.id,
-        email,
+        email: email.trim().toLowerCase(),
         displayName: profile.displayName,
       });
       return done(null, user);

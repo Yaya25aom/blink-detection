@@ -28,7 +28,7 @@ function Login() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password,
         }),
       });
@@ -57,7 +57,7 @@ function Login() {
           replace: true,
           state: {
             user_id: result.data.user_id,
-            email: email,
+            email: email.trim().toLowerCase(),
             reference_code: result.data.reference_code,
             returnTo,
           },

@@ -22,7 +22,7 @@ export default function Register() {
     if (form.password !== form.confirm_password) return setError("รหัสผ่านยืนยันไม่ตรงกัน");
     setLoading(true);
     try {
-      const response = await publicApiFetch("/auth/register", { method: "POST", body: JSON.stringify(form) });
+      const response = await publicApiFetch("/auth/register", { method: "POST", body: JSON.stringify({ ...form, email: form.email.trim().toLowerCase() }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "ไม่สามารถสร้างบัญชีได้");
       navigate("/login", { replace: true, state: { returnTo, registered: true } });

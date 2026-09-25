@@ -5,6 +5,15 @@ import { authenticateToken } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
+router.get("/google/status", (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      configured: googleAuthConfigured,
+      callback_url: process.env.GOOGLE_CALLBACK_URL ?? "https://api.blinkcare.website/api/auth/google/callback",
+    },
+  });
+});
 router.post("/refresh", refresh);
 router.post("/login", loginController);
 router.post("/register", registerController);

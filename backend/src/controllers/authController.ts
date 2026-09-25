@@ -88,7 +88,7 @@ export async function loginController(req: Request, res: Response) {
       });
     }
 
-    const result = await login(email, password);
+    const result = await login(String(email).trim().toLowerCase(), password);
 
     return res.status(200).json({
       success: true,

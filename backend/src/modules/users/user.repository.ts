@@ -16,7 +16,7 @@ export async function findUserByEmail(email: string) {
       status_active,
       email_verified
     FROM user_service.users
-    WHERE email = $1
+    WHERE LOWER(email) = LOWER($1)
       AND delete_flag = 0
     `,
     [email]

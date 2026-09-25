@@ -6,11 +6,14 @@ import { RiCloseLine } from "react-icons/ri";
 import { FcGoogle } from "react-icons/fc";
 import { FaEye } from "react-icons/fa";
 import { API_URL } from "../services/apiClient";
+import { useState } from "react";
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/";
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState("");
 
   const handleClose = () => {
     navigate("/");
@@ -20,8 +23,22 @@ export default function Login() {
     navigate("/login", { replace: true, state: { returnTo } });
   };
 
-  const handleGoogleLogin = () => {
-    window.location.assign(`${API_URL}/auth/google`);
+  const handleGoogleLogin = async () => {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+    setGoogleError("");
+    try {
+      const response = await fetch(`${API_URL}/auth/google/status`);
+      const result = await response.json();
+      if (!response.ok || !result.data?.configured) {
+        throw new Error("ระบบเข้าสู่ระบบด้วย Google ยังไม่ได้ตั้งค่าบนเซิร์ฟเวอร์");
+      }
+      sessionStorage.setItem("blinkcareAuthReturnTo", returnTo);
+      window.location.assign(`${API_URL}/auth/google`);
+    } catch (error) {
+      setGoogleError(error instanceof Error ? error.message : "ไม่สามารถเชื่อมต่อ Google ได้");
+      setGoogleLoading(false);
+    }
   };
 
   const handleRegister = () => {
@@ -94,14 +111,17 @@ export default function Login() {
         <button
           className="google-btn"
           onClick={handleGoogleLogin}
+          disabled={googleLoading}
         >
           <FcGoogle size={24} />
 
           <span>
-            Continue with Google
+            {googleLoading ? "Connecting to Google..." : "Continue with Google"}
           </span>
 
         </button>
+
+        {googleError && <p className="google-error" role="alert">{googleError}</p>}
 
         {/* Register */}
 
