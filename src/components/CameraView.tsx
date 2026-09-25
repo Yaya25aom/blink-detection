@@ -45,7 +45,7 @@ export default function CameraView({
 
         <p className="monitor-text">
           {externalSession
-            ? "MONITORING FROM EXTENSION"
+            ? paused ? "EXTENSION MONITORING PAUSED" : "MONITORING FROM EXTENSION"
             : cameraOn
             ? "MONITORING IN PROGRESS"
             : sessionActive && paused
@@ -63,9 +63,13 @@ export default function CameraView({
         ========================= */}
 
         {externalSession ? (
-          <div className="extension-monitoring-note">
-            Extension is detecting. Live results are synchronized with this page.
-          </div>
+          <button
+            className={paused ? "start-btn" : "pause-btn"}
+            onClick={paused ? onStart : onPause}
+          >
+            {paused ? <FiVideo /> : <BsPauseCircle />}
+            {paused ? "Resume Monitoring" : "Pause Monitoring"}
+          </button>
         ) : !cameraOn ? (
           <button
             className="start-btn"

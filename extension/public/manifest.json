@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BlinkCare Monitor",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "ตรวจจับการกะพริบตาและแจ้งเตือนให้ดูแลสุขภาพตาระหว่างใช้งานหน้าจอ",
   "minimum_chrome_version": "116",
   "permissions": [

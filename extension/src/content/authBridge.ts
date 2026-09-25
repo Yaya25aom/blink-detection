@@ -7,6 +7,8 @@ const apiBaseUrl = location.hostname === "localhost" || location.hostname === "1
 let lastAuthState: string | null = null;
 let currentUserId: string | null = null;
 
+document.documentElement.dataset.blinkcareExtension = chrome.runtime.getManifest().version;
+
 const syncAuth = () => {
   const accessToken = localStorage.getItem("accessToken");
   const refreshToken = localStorage.getItem("refreshToken");
@@ -88,6 +90,11 @@ const syncLiveDetection = async () => {
     window.dispatchEvent(new CustomEvent("blinkcare:extension-detection", {
       detail: status,
     }));
+    window.postMessage({
+      source: "BLINKCARE_EXTENSION",
+      type: "BLINKCARE_LIVE_DETECTION",
+      payload: status,
+    }, "*");
   } catch {
     window.dispatchEvent(new CustomEvent("blinkcare:extension-detection", {
       detail: { ok: false, monitoring: false },
@@ -99,11 +106,9 @@ void syncLiveDetection();
 setInterval(() => void syncLiveDetection(), 1_000);
 
 window.addEventListener("blinkcare:extension-command", (event: Event) => {
-  const detail = (event as CustomEvent<{ requestId?: string; action?: "START" | "STOP" }>).detail;
+  const detail = (event as CustomEvent<{ requestId?: string; action?: "START" | "STOP" | "PAUSE" | "RESUME" }>).detail;
   if (!detail?.requestId || !detail.action) return;
-  const type = detail.action === "START"
-    ? "BLINKCARE_POPUP_START"
-    : "BLINKCARE_POPUP_STOP";
+  const type = `BLINKCARE_POPUP_${detail.action}`;
   void chrome.runtime.sendMessage({ type })
     .then((response) => {
       window.dispatchEvent(new CustomEvent("blinkcare:extension-command-response", {
@@ -118,6 +123,33 @@ window.addEventListener("blinkcare:extension-command", (event: Event) => {
           error: error instanceof Error ? error.message : String(error),
         },
       }));
+    });
+});
+
+window.addEventListener("message", (event: MessageEvent) => {
+  if (event.source !== window || event.data?.source !== "BLINKCARE_WEB") return;
+  if (event.data?.type !== "BLINKCARE_EXTENSION_COMMAND") return;
+  const detail = event.data.payload as { requestId?: string; action?: "START" | "STOP" | "PAUSE" | "RESUME" };
+  if (!detail?.requestId || !detail.action) return;
+  const type = `BLINKCARE_POPUP_${detail.action}`;
+  void chrome.runtime.sendMessage({ type })
+    .then((response) => {
+      window.postMessage({
+        source: "BLINKCARE_EXTENSION",
+        type: "BLINKCARE_EXTENSION_COMMAND_RESPONSE",
+        payload: { requestId: detail.requestId, ...response },
+      }, "*");
+    })
+    .catch((error: unknown) => {
+      window.postMessage({
+        source: "BLINKCARE_EXTENSION",
+        type: "BLINKCARE_EXTENSION_COMMAND_RESPONSE",
+        payload: {
+          requestId: detail.requestId,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }, "*");
     });
 });
 

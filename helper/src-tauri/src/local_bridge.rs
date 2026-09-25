@@ -56,6 +56,8 @@ fn respond(mut stream: TcpStream) {
   let is_status = request.starts_with("GET /status ");
   let is_start = request.starts_with("POST /session ");
   let is_stop = request.starts_with("POST /session/stop ");
+  let is_pause = request.starts_with("POST /session/pause ");
+  let is_resume = request.starts_with("POST /session/resume ");
 
   let (status_line, body) = if is_options {
     ("HTTP/1.1 204 No Content", String::new())
@@ -80,9 +82,14 @@ fn respond(mut stream: TcpStream) {
       }
       _ => ("HTTP/1.1 400 Bad Request", "{\"success\":false}".into()),
     }
-  } else if is_stop {
+  } else if is_stop || is_pause {
     if let Ok(mut current) = command().write() {
       current.tracking = false;
+    }
+    ("HTTP/1.1 200 OK", "{\"success\":true}".into())
+  } else if is_resume {
+    if let Ok(mut current) = command().write() {
+      current.tracking = current.session_id.is_some();
     }
     ("HTTP/1.1 200 OK", "{\"success\":true}".into())
   } else {

@@ -35,13 +35,15 @@ type ActivePlan = {
 };
 
 type ExtensionMessage =
-  | { type: "BLINKCARE_STATUS"; monitoring: boolean }
+  | { type: "BLINKCARE_STATUS"; monitoring: boolean; paused?: boolean }
   | { type: "BLINKCARE_ALERT"; title: string; message: string; category?: string }
   | { type: "BLINKCARE_BLINK_DETECTED"; ear: number; durationMs: number }
   | { type: "BLINKCARE_ERROR"; message: string }
-  | { type: "BLINKCARE_DETECTION_UPDATE"; blinkCount: number; blinksPerMinute: number; activeSeconds: number; personPresent: boolean; lightingLevel: "GOOD" | "DARK" | "UNKNOWN" }
+  | { type: "BLINKCARE_DETECTION_UPDATE"; blinkCount: number; blinksPerMinute: number; activeSeconds: number; personPresent: boolean; lightingLevel: "GOOD" | "DARK" | "UNKNOWN"; paused?: boolean }
   | { type: "BLINKCARE_POPUP_START" }
   | { type: "BLINKCARE_POPUP_STOP" }
+  | { type: "BLINKCARE_POPUP_PAUSE" }
+  | { type: "BLINKCARE_POPUP_RESUME" }
   | { type: "BLINKCARE_OPEN_LOGIN" }
   | { type: "BLINKCARE_PLAN_UPDATED" }
   | { type: "BLINKCARE_GET_NOTIFICATION_HISTORY" }
@@ -344,10 +346,10 @@ const ensureOffscreenDocument = async () => {
   });
 };
 
-const updateBadge = async (monitoring: boolean) => {
-  await chrome.action.setBadgeText({ text: monitoring ? "ON" : "" });
+const updateBadge = async (monitoring: boolean, paused = false) => {
+  await chrome.action.setBadgeText({ text: monitoring ? (paused ? "II" : "ON") : "" });
   await chrome.action.setBadgeBackgroundColor({ color: "#4f5de4" });
-  await chrome.storage.local.set({ blinkcareMonitoring: monitoring });
+  await chrome.storage.local.set({ blinkcareMonitoring: monitoring, blinkcarePaused: paused });
 };
 
 const startBackendSession = async (auth: ExtensionAuth) => {
@@ -533,7 +535,7 @@ chrome.notifications.onClosed.addListener((notificationId) => {
 });
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
-  if (message.type === "BLINKCARE_STATUS") void updateBadge(message.monitoring);
+  if (message.type === "BLINKCARE_STATUS") void updateBadge(message.monitoring, message.paused);
 
   if (message.type === "BLINKCARE_ALERT") {
     void createSystemNotification(message.title, message.message, { category: message.category });
@@ -552,6 +554,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       activeSeconds: message.activeSeconds,
       personPresent: message.personPresent,
       lightingLevel: message.lightingLevel,
+      blinkcarePaused: message.paused === true,
     });
     planOperation = planOperation
       .then(() => processPlanMeasures(message.activeSeconds, message.personPresent))
@@ -655,6 +658,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       "blinkcareAuthenticatedUserId",
       "blinkcareSessionId",
       "blinkcareMonitoring",
+      "blinkcarePaused",
       "blinkCount",
       "blinksPerMinute",
       "activeSeconds",
@@ -666,6 +670,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       userId: stored.blinkcareAuthenticatedUserId ?? null,
       sessionId: stored.blinkcareSessionId ?? null,
       monitoring: stored.blinkcareMonitoring === true,
+      paused: stored.blinkcarePaused === true,
       blinkCount: Number(stored.blinkCount ?? 0),
       blinksPerMinute: Number(stored.blinksPerMinute ?? 0),
       activeSeconds: Number(stored.activeSeconds ?? 0),
@@ -684,7 +689,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       if (!auth) throw new Error("AUTH_REQUIRED");
       await startBackendSession(auth);
       await chrome.storage.local.remove("blinkcareLastError");
-      await chrome.storage.local.set({ blinkCount: 0, blinksPerMinute: 0, activeSeconds: 0, personPresent: false });
+      await chrome.storage.local.set({ blinkCount: 0, blinksPerMinute: 0, activeSeconds: 0, personPresent: false, blinkcarePaused: false });
       previousActiveSeconds = 0;
       continuousActiveSeconds = 0;
       lastHelperPollAt = 0;
@@ -702,12 +707,30 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     void stopDetection()
       .then(() => blinkOperation)
       .then(() => finishBackendSession())
-      .then(() => chrome.storage.local.set({ blinkcareActiveApp: null }))
+      .then(() => chrome.storage.local.set({ blinkcareActiveApp: null, blinkcarePaused: false }))
       .then(() => sendResponse({ ok: true }))
       .catch((error: unknown) => sendResponse({
         ok: false,
         error: error instanceof Error ? error.message : String(error),
       }));
+    return true;
+  }
+
+  if (message.type === "BLINKCARE_POPUP_PAUSE") {
+    void chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_PAUSE" })
+      .then(() => fetch(`${HELPER_BASE_URL}/session/pause`, { method: "POST" }))
+      .then(() => chrome.storage.local.set({ blinkcarePaused: true, personPresent: false }))
+      .then(() => sendResponse({ ok: true }))
+      .catch((error: unknown) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message.type === "BLINKCARE_POPUP_RESUME") {
+    void fetch(`${HELPER_BASE_URL}/session/resume`, { method: "POST" })
+      .then(() => chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_RESUME" }))
+      .then(() => chrome.storage.local.set({ blinkcarePaused: false }))
+      .then(() => sendResponse({ ok: true }))
+      .catch((error: unknown) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }));
     return true;
   }
 });

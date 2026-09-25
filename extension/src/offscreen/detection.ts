@@ -11,6 +11,7 @@ let stream: MediaStream | null = null;
 let detectionTimer: number | null = null;
 let presenceTimer: number | null = null;
 let monitoring = false;
+let paused = false;
 let detector = new BlinkDetector();
 let lastBlinkCount = 0;
 let lastFaceSeenAt = 0;
@@ -76,7 +77,7 @@ const sendAlert = (key: string, title: string, message: string) => {
 
 const publishDetectionUpdate = () => {
   const now = Date.now();
-  const personPresent = lastFaceSeenAt > 0 && now - lastFaceSeenAt <= 1_500;
+  const personPresent = !paused && lastFaceSeenAt > 0 && now - lastFaceSeenAt <= 1_500;
   blinkTimestamps = blinkTimestamps.filter(
     (timestamp) => timestamp >= now - 60_000,
   );
@@ -90,13 +91,14 @@ const publishDetectionUpdate = () => {
     activeSeconds,
     personPresent,
     lightingLevel,
+    paused,
   });
 };
 
 const detectionLoop = async () => {
   if (!monitoring) return;
 
-  if (video.readyState >= 2) {
+  if (!paused && video.readyState >= 2) {
     const result = await detectFace(video);
     const face = result ? selectPrimaryFace(result.faceLandmarks) : null;
     const now = Date.now();
@@ -195,6 +197,7 @@ const startMonitoring = async () => {
   darkStartedAt = 0;
 
   monitoring = true;
+  paused = false;
 
   void chrome.runtime.sendMessage({
     type: "BLINKCARE_STATUS",
@@ -210,6 +213,7 @@ const startMonitoring = async () => {
 
 const stopMonitoring = () => {
   monitoring = false;
+  paused = false;
   if (detectionTimer !== null) window.clearTimeout(detectionTimer);
   detectionTimer = null;
   if (presenceTimer !== null) window.clearInterval(presenceTimer);
@@ -230,6 +234,22 @@ const stopMonitoring = () => {
     type: "BLINKCARE_STATUS",
     monitoring: false,
   });
+};
+
+const pauseMonitoring = () => {
+  if (!monitoring || paused) return;
+  paused = true;
+  lastFaceSeenAt = 0;
+  void chrome.runtime.sendMessage({ type: "BLINKCARE_STATUS", monitoring: true, paused: true });
+  publishDetectionUpdate();
+};
+
+const resumeMonitoring = () => {
+  if (!monitoring || !paused) return;
+  paused = false;
+  lastFaceSeenAt = 0;
+  activeStartedAt = 0;
+  void chrome.runtime.sendMessage({ type: "BLINKCARE_STATUS", monitoring: true, paused: false });
 };
 
 chrome.runtime.onMessage.addListener(
@@ -269,6 +289,8 @@ chrome.runtime.onMessage.addListener(
       });
     }
     if (message.type === "BLINKCARE_STOP") stopMonitoring();
+    if (message.type === "BLINKCARE_PAUSE") pauseMonitoring();
+    if (message.type === "BLINKCARE_RESUME") resumeMonitoring();
     if (message.type === "BLINKCARE_PLAY_NOTIFICATION_SOUND") void playNotificationSound();
   },
 );

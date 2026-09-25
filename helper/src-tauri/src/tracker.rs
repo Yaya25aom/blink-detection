@@ -84,6 +84,7 @@ async fn tick(
     }
 
     state.reset_app();
+    local_bridge::update(false, None);
     return Ok(());
   }
 

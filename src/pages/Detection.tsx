@@ -37,6 +37,7 @@ type ExtensionDetection = {
   userId: string | null;
   sessionId: string | null;
   monitoring: boolean;
+  paused: boolean;
   blinkCount: number;
   blinksPerMinute: number;
   activeSeconds: number;
@@ -45,27 +46,42 @@ type ExtensionDetection = {
   activeApp: string | null;
 };
 
-const sendExtensionCommand = (action: "START" | "STOP") =>
+const sendExtensionCommand = (action: "START" | "STOP" | "PAUSE" | "RESUME") =>
   new Promise<void>((resolve, reject) => {
     const requestId = crypto.randomUUID();
     const timeout = window.setTimeout(() => {
       window.removeEventListener("blinkcare:extension-command-response", receive as EventListener);
-      reject(new Error("ไม่พบ BlinkCare Extension กรุณาติดตั้งหรือ Reload Extension ก่อน"));
+      window.removeEventListener("message", receiveMessage);
+      const detectedVersion = document.documentElement.dataset.blinkcareExtension;
+      reject(new Error(detectedVersion
+        ? `BlinkCare Extension ${detectedVersion} ไม่ตอบสนอง กรุณากด Reload Extension และ Refresh หน้านี้`
+        : "ไม่พบ BlinkCare Extension ในหน้านี้ กรุณาอนุญาต Site access สำหรับเว็บไซต์ BlinkCare แล้ว Refresh อีกครั้ง"));
     }, 5_000);
     const receive = (event: Event) => {
       const detail = (event as CustomEvent<{ requestId: string; ok: boolean; error?: string }>).detail;
       if (detail?.requestId !== requestId) return;
       window.clearTimeout(timeout);
       window.removeEventListener("blinkcare:extension-command-response", receive as EventListener);
+      window.removeEventListener("message", receiveMessage);
       if (detail.ok) resolve();
       else reject(new Error(detail.error === "AUTH_REQUIRED"
         ? "กรุณาเข้าสู่ระบบและเชื่อมบัญชีกับ Extension ก่อน"
         : detail.error || "ไม่สามารถสั่งงาน Extension ได้"));
     };
+    const receiveMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.data?.source !== "BLINKCARE_EXTENSION") return;
+      if (event.data?.type !== "BLINKCARE_EXTENSION_COMMAND_RESPONSE") return;
+      receive(new CustomEvent("blinkcare:extension-command-response", {
+        detail: event.data.payload,
+      }));
+    };
     window.addEventListener("blinkcare:extension-command-response", receive as EventListener);
-    window.dispatchEvent(new CustomEvent("blinkcare:extension-command", {
-      detail: { requestId, action },
-    }));
+    window.addEventListener("message", receiveMessage);
+    window.postMessage({
+      source: "BLINKCARE_WEB",
+      type: "BLINKCARE_EXTENSION_COMMAND",
+      payload: { requestId, action },
+    }, "*");
   });
 
 export default function Detection() {
@@ -162,9 +178,11 @@ export default function Detection() {
   const [externalSession, setExternalSession] = useState(false);
   const localSessionRef = useRef(false);
   const extensionBridgeSessionRef = useRef(false);
+  const extensionSessionIdRef = useRef<string | null>(null);
+  const lastExtensionBridgeUpdateAt = useRef(0);
   const [extensionCommandPending, setExtensionCommandPending] = useState(false);
 
-  const controlExtension = async (action: "START" | "STOP") => {
+  const controlExtension = async (action: "START" | "STOP" | "PAUSE" | "RESUME") => {
     if (extensionCommandPending) return;
     if (action === "START" && externalSession) {
       window.alert("บัญชีนี้กำลังมี Detection Session ทำงานอยู่แล้ว");
@@ -193,17 +211,21 @@ export default function Detection() {
           setDetectionId(null);
           setCurrentApp(null);
           currentAppRef.current = null;
+          extensionSessionIdRef.current = null;
         }
         return;
       }
       extensionBridgeSessionRef.current = true;
+      lastExtensionBridgeUpdateAt.current = Date.now();
+      const isNewSession = extensionSessionIdRef.current !== detail.sessionId;
+      extensionSessionIdRef.current = detail.sessionId;
       setExternalSession(true);
       setSessionActive(true);
-      setPaused(false);
+      setPaused(detail.paused === true);
       setDetectionId(detail.sessionId);
-      setBlinkCount(detail.blinkCount);
+      setBlinkCount((current) => isNewSession ? detail.blinkCount : Math.max(current, detail.blinkCount));
       sessionBlinkCount.current = detail.blinkCount;
-      setDuration(detail.activeSeconds);
+      setDuration((current) => isNewSession ? detail.activeSeconds : Math.max(current, detail.activeSeconds));
       presenceActiveSeconds.current = detail.activeSeconds;
       setAverageBlinkPerMinute(detail.blinksPerMinute);
       if (detail.activeApp) {
@@ -212,7 +234,18 @@ export default function Detection() {
       }
     };
     window.addEventListener("blinkcare:extension-detection", receiveExtensionDetection);
-    return () => window.removeEventListener("blinkcare:extension-detection", receiveExtensionDetection);
+    const receiveExtensionMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.data?.source !== "BLINKCARE_EXTENSION") return;
+      if (event.data?.type !== "BLINKCARE_LIVE_DETECTION") return;
+      receiveExtensionDetection(new CustomEvent("blinkcare:extension-detection", {
+        detail: event.data.payload,
+      }));
+    };
+    window.addEventListener("message", receiveExtensionMessage);
+    return () => {
+      window.removeEventListener("blinkcare:extension-detection", receiveExtensionDetection);
+      window.removeEventListener("message", receiveExtensionMessage);
+    };
   }, []);
 
   // Extension and website share the same backend session state. The website is
@@ -221,6 +254,7 @@ export default function Detection() {
   useEffect(() => {
     const syncActiveSession = async () => {
       if (localSessionRef.current) return;
+      if (Date.now() - lastExtensionBridgeUpdateAt.current < 3_000) return;
       try {
         const response = await apiFetch("/detection/active");
         if (!response.ok) {
@@ -1115,7 +1149,7 @@ export default function Detection() {
           // =================================================
 
           onStart={async () => {
-            await controlExtension("START");
+            await controlExtension(paused ? "RESUME" : "START");
             return;
 
             // ===============================================
@@ -1246,7 +1280,10 @@ export default function Detection() {
           // Pause
           // =================================================
 
-          onPause={handlePause}
+          onPause={() => {
+            if (externalSession) void controlExtension("PAUSE");
+            else void handlePause();
+          }}
           // =================================================
           // End Session
           // =================================================
@@ -1337,7 +1374,7 @@ export default function Detection() {
 
             <h3>
               {externalSession
-                ? "Extension Detection Active"
+                ? paused ? "Extension Detection Paused" : "Extension Detection Active"
                 : cameraOn
                 ? "Detection Active"
                 : paused
@@ -1350,7 +1387,9 @@ export default function Detection() {
 
           <p>
             {externalSession
-              ? "The Extension is monitoring this account. Live results are synchronized here automatically."
+              ? paused
+                ? "Detection and application timing are paused. Press Resume to continue this session."
+                : "The Extension is monitoring this account. Live results are synchronized here automatically."
               : cameraOn
               ? "System is currently monitoring blink activity and eye movement."
               : paused

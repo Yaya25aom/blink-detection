@@ -4,6 +4,7 @@ type MonitorState =
   | "idle"
   | "starting"
   | "monitoring"
+  | "paused"
   | "stopping"
   | "error";
 
@@ -11,6 +12,7 @@ const stateCopy: Record<MonitorState, string> = {
   idle: "ระบบยังไม่ได้เริ่มตรวจจับ",
   starting: "กำลังเปิดกล้องและเตรียมระบบ...",
   monitoring: "กำลังตรวจจับการกะพริบตา",
+  paused: "หยุดตรวจจับชั่วคราว",
   stopping: "กำลังหยุดระบบ...",
   error: "ไม่สามารถเริ่ม BlinkCare ได้",
 };
@@ -59,6 +61,7 @@ export default function App() {
     const loadData = async () => {
       const stored = await chrome.storage.local.get([
         "blinkcareMonitoring",
+        "blinkcarePaused",
         "blinkcareLastError",
         "blinkCount",
         "blinksPerMinute",
@@ -71,7 +74,7 @@ export default function App() {
 
       setState(
         stored.blinkcareMonitoring === true
-          ? "monitoring"
+          ? stored.blinkcarePaused === true ? "paused" : "monitoring"
           : "idle"
       );
 
@@ -127,6 +130,10 @@ export default function App() {
             ? "monitoring"
             : "idle"
         );
+      }
+
+      if (changes.blinkcarePaused) {
+        setState(changes.blinkcarePaused.newValue === true ? "paused" : "monitoring");
       }
 
       // Error
@@ -319,6 +326,18 @@ export default function App() {
     }
   };
 
+  const setPaused = async (pause: boolean) => {
+    setError("");
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: pause ? "BLINKCARE_POPUP_PAUSE" : "BLINKCARE_POPUP_RESUME",
+      });
+      if (!response?.ok) throw new Error(response?.error || "ไม่สามารถเปลี่ยนสถานะได้");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "ไม่สามารถเปลี่ยนสถานะได้");
+    }
+  };
+
   // ================================
   // UI State
   // ================================
@@ -328,6 +347,8 @@ export default function App() {
 
   const monitoring =
     state === "monitoring";
+  const paused = state === "paused";
+  const active = monitoring || paused;
 
   // ================================
   // UI
@@ -351,7 +372,7 @@ export default function App() {
       {/* Status */}
       <section
         className={`monitor-card ${
-          monitoring ? "active" : ""
+          active ? "active" : ""
         }`}
       >
         <span className="status-light" />
@@ -376,7 +397,7 @@ export default function App() {
       {/* ================================
           Blink Statistics
       ================================= */}
-      {monitoring && (
+      {active && (
         <>
         <section className="detection-time">
           <span>เวลาตรวจจับจริง</span>
@@ -446,29 +467,20 @@ export default function App() {
       )}
 
       {/* Start / Stop */}
-      <button
-        className={
-          monitoring
-            ? "stop-button"
-            : "start-button"
-        }
-        disabled={busy}
-        onClick={() =>
-          void (
-            monitoring
-              ? stop()
-              : start()
-          )
-        }
-      >
-        {busy
-          ? stateCopy[state]
-          : monitoring
-            ? "หยุดตรวจจับ"
-            : authenticatedUserId
-              ? "เริ่มตรวจจับ"
-              : "เข้าสู่ระบบเพื่อเริ่ม"}
-      </button>
+      {active ? (
+        <div className="monitor-actions">
+          <button className="pause-button" disabled={busy} onClick={() => void setPaused(!paused)}>
+            {paused ? "ตรวจจับต่อ" : "หยุดชั่วคราว"}
+          </button>
+          <button className="stop-button" disabled={busy} onClick={() => void stop()}>
+            หยุดตรวจจับ
+          </button>
+        </div>
+      ) : (
+        <button className="start-button" disabled={busy} onClick={() => void start()}>
+          {busy ? stateCopy[state] : authenticatedUserId ? "เริ่มตรวจจับ" : "เข้าสู่ระบบเพื่อเริ่ม"}
+        </button>
+      )}
 
       {/* Hint */}
       <p className="popup-hint">

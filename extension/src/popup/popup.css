@@ -107,7 +107,8 @@ button {
   font-size: 12px;
 }
 .start-button,
-.stop-button {
+.stop-button,
+.pause-button {
   width: 100%;
   min-height: 44px;
   border: 0;
@@ -122,8 +123,11 @@ button {
 .stop-button {
   background: #dc4b55;
 }
+.monitor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pause-button { background: #eef2ff; color: #3443b8; }
 .start-button:disabled,
-.stop-button:disabled {
+.stop-button:disabled,
+.pause-button:disabled {
   opacity: 0.65;
   cursor: wait;
 }
