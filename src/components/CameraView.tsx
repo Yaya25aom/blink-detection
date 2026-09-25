@@ -6,6 +6,7 @@ type Props = {
   cameraOn: boolean;
   sessionActive: boolean;
   paused: boolean;
+  externalSession?: boolean;
 
   onStart: () => void;
   onPause: () => void;
@@ -16,6 +17,7 @@ export default function CameraView({
   cameraOn,
   sessionActive,
   paused,
+  externalSession = false,
   onStart,
   onPause,
   onEnd,
@@ -42,7 +44,9 @@ export default function CameraView({
         </div>
 
         <p className="monitor-text">
-          {cameraOn
+          {externalSession
+            ? "MONITORING FROM EXTENSION"
+            : cameraOn
             ? "MONITORING IN PROGRESS"
             : sessionActive && paused
             ? "MONITORING PAUSED"
@@ -58,7 +62,11 @@ export default function CameraView({
             Start / Pause / Resume
         ========================= */}
 
-        {!cameraOn ? (
+        {externalSession ? (
+          <div className="extension-monitoring-note">
+            Extension is detecting. Use the Extension popup to stop this session.
+          </div>
+        ) : !cameraOn ? (
           <button
             className="start-btn"
             onClick={onStart}
@@ -88,7 +96,7 @@ export default function CameraView({
         <button
           className="stop-btn"
           onClick={onEnd}
-          disabled={!sessionActive}
+          disabled={!sessionActive || externalSession}
         >
           <BsStopCircle />
 

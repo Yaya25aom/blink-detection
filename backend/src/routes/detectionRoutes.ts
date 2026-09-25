@@ -2,7 +2,9 @@ import { Router } from "express";
 
 import {
   startDetection,
-  endDetectionController
+  endDetectionController,
+  getActiveDetectionController,
+  updateDetectionLiveController,
 } from "../controllers/detectionController.js";
 
 import {
@@ -18,5 +20,7 @@ router.post(
   startDetection
 );
 router.post("/end", authenticateToken, endDetectionController);
+router.get("/active", authenticateToken, getActiveDetectionController);
+router.patch("/live", authenticateToken, updateDetectionLiveController);
 
 export default router;

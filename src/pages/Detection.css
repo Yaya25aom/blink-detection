@@ -171,6 +171,20 @@
   box-sizing: border-box;
 }
 
+.extension-monitoring-note {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 13px;
+  text-align: center;
+}
+
 /* =========================
    Detection Status
 ========================= */

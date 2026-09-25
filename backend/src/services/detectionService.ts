@@ -1,21 +1,65 @@
 import { pool } from "../config/database.js";
 import { createAppBlinkSummary } from "./appBlinkSummaryService.js";
 
-export const createDetectionSession = async (user_id: string) => {
+export const createDetectionSession = async (
+  user_id: string,
+  source: "WEBSITE" | "EXTENSION" = "WEBSITE",
+) => {
   const result = await pool.query(
     `
     INSERT INTO detection_service.detection_session
     (
       user_id,
-      started_at
+      started_at,
+      detection_source,
+      live_updated_at
     )
-    VALUES ($1, CURRENT_TIMESTAMP)
+    VALUES ($1, CURRENT_TIMESTAMP, $2, CURRENT_TIMESTAMP)
     RETURNING *
     `,
-    [user_id],
+    [user_id, source],
   );
 
   return result.rows[0];
+};
+
+type DetectionLiveState = {
+  user_id: string;
+  session_id: string;
+  active_seconds: number;
+  total_blinks: number;
+  blinks_per_minute: number;
+  person_present: boolean;
+  lighting_level: "GOOD" | "DARK" | "UNKNOWN";
+};
+
+export const updateDetectionLiveState = async (data: DetectionLiveState) => {
+  const result = await pool.query(
+    `UPDATE detection_service.detection_session
+     SET live_active_seconds = $1, live_total_blinks = $2,
+         live_blinks_per_minute = $3, live_person_present = $4,
+         live_lighting_level = $5, live_updated_at = CURRENT_TIMESTAMP
+     WHERE session_id = $6 AND user_id = $7 AND ended_at IS NULL
+     RETURNING session_id`,
+    [data.active_seconds, data.total_blinks, data.blinks_per_minute,
+      data.person_present, data.lighting_level, data.session_id, data.user_id],
+  );
+  return result.rows[0] ?? null;
+};
+
+export const getActiveDetectionSession = async (user_id: string) => {
+  const result = await pool.query(
+    `SELECT session_id, detection_source, started_at,
+       live_active_seconds AS active_seconds, live_total_blinks AS total_blinks,
+       live_blinks_per_minute AS blinks_per_minute,
+       live_person_present AS person_present, live_lighting_level AS lighting_level,
+       live_updated_at
+     FROM detection_service.detection_session
+     WHERE user_id = $1 AND ended_at IS NULL
+     ORDER BY started_at DESC LIMIT 1`,
+    [user_id],
+  );
+  return result.rows[0] ?? null;
 };
 
 // End Detection Session
@@ -47,7 +91,11 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
       duration_seconds = $1,
       total_blinks = $2,
       average_blinks_per_minute = $3,
-      average_ear = $4
+      average_ear = $4,
+      live_active_seconds = $1,
+      live_total_blinks = $2,
+      live_blinks_per_minute = $3,
+      live_updated_at = CURRENT_TIMESTAMP
     WHERE session_id = $5
       AND user_id = $6
     RETURNING *

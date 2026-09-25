@@ -21,6 +21,17 @@ import {
 } from "../services/detectionTelemetry";
 import { LuMonitor, LuChrome, LuCode, LuGlobe } from "react-icons/lu";
 
+type ActiveDetection = {
+  session_id: string;
+  detection_source: "WEBSITE" | "EXTENSION";
+  active_seconds: number;
+  total_blinks: number;
+  blinks_per_minute: number;
+  person_present: boolean;
+  lighting_level: "GOOD" | "DARK" | "UNKNOWN";
+  live_updated_at: string | null;
+};
+
 export default function Detection() {
   const { videoRef, cameraOn, startCamera, stopCamera } = useCamera();
 
@@ -111,6 +122,50 @@ export default function Detection() {
   const [sessionActive, setSessionActive] = useState(false);
 
   const [paused, setPaused] = useState(false);
+  const [externalSession, setExternalSession] = useState(false);
+  const localSessionRef = useRef(false);
+
+  // Extension and website share the same backend session state. The website is
+  // read-only while the Extension owns the camera, preventing two detectors
+  // from writing into one session.
+  useEffect(() => {
+    const syncActiveSession = async () => {
+      if (localSessionRef.current) return;
+      try {
+        const response = await apiFetch("/detection/active");
+        if (!response.ok) return;
+        const payload = await response.json() as { data: ActiveDetection | null };
+        const active = payload.data;
+        const fresh = active?.live_updated_at
+          ? Date.now() - new Date(active.live_updated_at).getTime() < 10_000
+          : false;
+        if (active?.detection_source === "EXTENSION" && fresh) {
+          setExternalSession(true);
+          setSessionActive(true);
+          setPaused(false);
+          setDetectionId(active.session_id);
+          setBlinkCount(Number(active.total_blinks) || 0);
+          sessionBlinkCount.current = Number(active.total_blinks) || 0;
+          setDuration(Number(active.active_seconds) || 0);
+          presenceActiveSeconds.current = Number(active.active_seconds) || 0;
+          setAverageBlinkPerMinute(Number(active.blinks_per_minute) || 0);
+          return;
+        }
+        if (externalSession) {
+          setExternalSession(false);
+          setSessionActive(false);
+          setDetectionId(null);
+          setCurrentApp(null);
+          currentAppRef.current = null;
+        }
+      } catch (error) {
+        console.error("Unable to sync Extension detection state:", error);
+      }
+    };
+    void syncActiveSession();
+    const timer = window.setInterval(() => void syncActiveSession(), 2_000);
+    return () => window.clearInterval(timer);
+  }, [externalSession]);
 
   // =====================================================
   // Initialize Face Detector
@@ -263,6 +318,7 @@ export default function Detection() {
 
       const response = await apiFetch("/detection/start", {
         method: "POST",
+        body: JSON.stringify({ source: "WEBSITE" }),
       });
 
       if (!response.ok) {
@@ -739,6 +795,7 @@ export default function Detection() {
     // ===================================================
 
     setSessionActive(false);
+    localSessionRef.current = false;
 
     setPaused(false);
 
@@ -938,6 +995,7 @@ export default function Detection() {
           cameraOn={cameraOn}
           sessionActive={sessionActive}
           paused={paused}
+          externalSession={externalSession}
           // =================================================
           // Start / Resume
           // =================================================
@@ -979,6 +1037,8 @@ export default function Detection() {
             // ===============================================
 
             console.log("START NEW SESSION");
+
+            if (externalSession) return;
 
             const id = await startDetectionSession();
 
@@ -1051,6 +1111,7 @@ export default function Detection() {
               // =============================================
 
               setSessionActive(true);
+              localSessionRef.current = true;
 
               setPaused(false);
 
@@ -1146,13 +1207,15 @@ export default function Detection() {
         ================================================= */}
 
         <div
-          className={cameraOn ? "detection-status active" : "detection-status"}
+          className={cameraOn || externalSession ? "detection-status active" : "detection-status"}
         >
           <div className="status-header">
-            <span className={cameraOn ? "status-dot active" : "status-dot"} />
+            <span className={cameraOn || externalSession ? "status-dot active" : "status-dot"} />
 
             <h3>
-              {cameraOn
+              {externalSession
+                ? "Extension Detection Active"
+                : cameraOn
                 ? "Detection Active"
                 : paused
                   ? "Detection Paused"
@@ -1163,7 +1226,9 @@ export default function Detection() {
           </div>
 
           <p>
-            {cameraOn
+            {externalSession
+              ? "The Extension is monitoring this account. Live results are synchronized here automatically."
+              : cameraOn
               ? "System is currently monitoring blink activity and eye movement."
               : paused
                 ? "Detection is paused. Press Resume to continue the current session."

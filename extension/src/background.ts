@@ -57,6 +57,7 @@ let lastPlanLoadedAt = 0;
 let previousActiveSeconds = 0;
 let continuousActiveSeconds = 0;
 let lastHelperPollAt = 0;
+let lastLiveSyncAt = 0;
 
 const enqueueAuthOperation = (operation: () => Promise<void>) => {
   authOperation = authOperation.then(operation, operation);
@@ -352,7 +353,10 @@ const startBackendSession = async (auth: ExtensionAuth) => {
   const existing = await chrome.storage.local.get("blinkcareSessionId");
   if (existing.blinkcareSessionId) throw new Error("มี Session ที่ยังไม่ถูกปิด กรุณากดหยุดก่อนเริ่มใหม่");
 
-  const response = await authenticatedFetch(auth, "/detection/start", { method: "POST" });
+  const response = await authenticatedFetch(auth, "/detection/start", {
+    method: "POST",
+    body: JSON.stringify({ source: "EXTENSION" }),
+  });
   const result = await response.json();
   if (!response.ok || !result.data?.session_id) {
     throw new Error(result.message || "ไม่สามารถสร้าง Detection Session ได้");
@@ -552,6 +556,26 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       .then(() => processPlanMeasures(message.activeSeconds, message.personPresent))
       .catch((error) => console.error("Unable to process plan reminders:", error));
     void refreshActiveDesktopApp();
+    const now = Date.now();
+    if (now - lastLiveSyncAt >= 2_000) {
+      lastLiveSyncAt = now;
+      void Promise.all([getAuth(), chrome.storage.local.get("blinkcareSessionId")])
+        .then(([auth, stored]) => {
+          if (!auth || !stored.blinkcareSessionId) return;
+          return authenticatedFetch(auth, "/detection/live", {
+            method: "PATCH",
+            body: JSON.stringify({
+              session_id: stored.blinkcareSessionId,
+              active_seconds: message.activeSeconds,
+              total_blinks: message.blinkCount,
+              blinks_per_minute: message.blinksPerMinute,
+              person_present: message.personPresent,
+              lighting_level: message.lightingLevel,
+            }),
+          });
+        })
+        .catch((error) => console.error("Unable to sync live detection state:", error));
+    }
   }
 
   if (message.type === "BLINKCARE_ERROR") {

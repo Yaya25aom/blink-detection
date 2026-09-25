@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 import {
   createDetectionSession,
   endDetectionSession,
+  getActiveDetectionSession,
+  updateDetectionLiveState,
 } from "../services/detectionService.js";
 
 export const startDetection = async (
@@ -34,7 +36,8 @@ export const startDetection = async (
 
     const detection =
       await createDetectionSession(
-        user_id
+        user_id,
+        req.body?.source === "EXTENSION" ? "EXTENSION" : "WEBSITE",
       );
 
     return res.status(201).json({
@@ -55,6 +58,40 @@ export const startDetection = async (
       message:
         "Internal server error",
     });
+  }
+};
+
+export const getActiveDetectionController = async (req: Request, res: Response) => {
+  const user = req.user as { user_id?: string };
+  if (!user?.user_id) return res.status(401).json({ message: "Unauthorized" });
+  try {
+    return res.json({ data: await getActiveDetectionSession(user.user_id) });
+  } catch (error) {
+    console.error("Get active detection error:", error);
+    return res.status(500).json({ message: "Failed to get active detection session" });
+  }
+};
+
+export const updateDetectionLiveController = async (req: Request, res: Response) => {
+  const user = req.user as { user_id?: string };
+  if (!user?.user_id) return res.status(401).json({ message: "Unauthorized" });
+  const { session_id, active_seconds, total_blinks, blinks_per_minute, person_present, lighting_level } = req.body;
+  if (!session_id) return res.status(400).json({ message: "session_id is required" });
+  try {
+    const result = await updateDetectionLiveState({
+      user_id: user.user_id,
+      session_id: String(session_id),
+      active_seconds: Math.max(0, Number(active_seconds) || 0),
+      total_blinks: Math.max(0, Number(total_blinks) || 0),
+      blinks_per_minute: Math.max(0, Number(blinks_per_minute) || 0),
+      person_present: person_present === true,
+      lighting_level: ["GOOD", "DARK"].includes(lighting_level) ? lighting_level : "UNKNOWN",
+    });
+    if (!result) return res.status(404).json({ message: "Active detection session not found" });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Update detection live state error:", error);
+    return res.status(500).json({ message: "Failed to update detection state" });
   }
 };
 // =========================
