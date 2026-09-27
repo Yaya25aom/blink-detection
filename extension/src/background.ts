@@ -61,6 +61,7 @@ let previousActiveSeconds = 0;
 let continuousActiveSeconds = 0;
 let lastHelperPollAt = 0;
 let lastLiveSyncAt = 0;
+let stopOperation: Promise<void> | null = null;
 
 const enqueueAuthOperation = (operation: () => Promise<void>) => {
   authOperation = authOperation.then(operation, operation);
@@ -399,10 +400,9 @@ const finishBackendSession = async (authOverride?: ExtensionAuth | null) => {
   const stored = await chrome.storage.local.get([
     "blinkcareSessionId", "blinkcareSessionUserId", "blinkCount", "activeSeconds",
   ]);
-  if (!stored.blinkcareSessionId) return;
-
   const auth = authOverride ?? await getAuth();
-  if (!auth || String(stored.blinkcareSessionUserId) !== auth.userId) {
+  if (!auth) throw new Error("AUTH_REQUIRED");
+  if (stored.blinkcareSessionUserId && String(stored.blinkcareSessionUserId) !== auth.userId) {
     throw new Error("บัญชีปัจจุบันไม่ตรงกับเจ้าของ Detection Session");
   }
 
@@ -746,10 +746,14 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
   }
 
   if (message.type === "BLINKCARE_POPUP_STOP") {
-    void stopDetection()
-      .then(() => blinkOperation)
+    stopOperation ??= stopDetection()
+      .then(() => updateBadge(false))
+      // Blink events are best-effort detail records. The session summary already
+      // contains the final counters, so a slow record must never block STOP.
       .then(() => finishBackendSession())
       .then(() => chrome.storage.local.set({ blinkcareActiveApp: null, blinkcarePaused: false }))
+      .finally(() => { stopOperation = null; });
+    void stopOperation
       .then(() => sendResponse({ ok: true }))
       .catch((error: unknown) => sendResponse({
         ok: false,

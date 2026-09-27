@@ -127,13 +127,6 @@ export const endDetectionController = async (
       average_ear,
     } = req.body;
 
-    if (!session_id) {
-      return res.status(400).json({
-        success: false,
-        message: "session_id is required",
-      });
-    }
-
     const result = await endDetectionSession({
       user_id: user.user_id,
       session_id,
@@ -145,7 +138,7 @@ export const endDetectionController = async (
 
     return res.status(200).json({
       success: true,
-      message: "Detection session ended successfully",
+      message: result ? "Detection session ended successfully" : "No active detection session",
       data: result,
     });
 

@@ -104,7 +104,7 @@ export const getActiveDetectionSession = async (user_id: string) => {
 
 type EndDetectionSessionData = {
   user_id: string;
-  session_id: string;
+  session_id?: string;
   duration_seconds: number;
   total_blinks: number;
   average_blinks_per_minute: number;
@@ -123,6 +123,16 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
 
   const result = await pool.query(
     `
+    WITH target_session AS (
+      SELECT session_id
+      FROM detection_service.detection_session
+      WHERE user_id = $6
+        AND ended_at IS NULL
+        AND session_id = COALESCE($5, session_id)
+      ORDER BY started_at DESC
+      LIMIT 1
+      FOR UPDATE
+    )
     UPDATE detection_service.detection_session
     SET
       ended_at = CURRENT_TIMESTAMP,
@@ -134,8 +144,7 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
       live_total_blinks = $2,
       live_blinks_per_minute = $3,
       live_updated_at = CURRENT_TIMESTAMP
-    WHERE session_id = $5
-      AND user_id = $6
+    WHERE session_id IN (SELECT session_id FROM target_session)
     RETURNING *
     `,
     [
@@ -148,9 +157,9 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
     ],
   );
 
-  if (result.rows.length === 0) {
-    throw new Error("Detection session not found");
-  }
+  if (result.rows.length === 0) return null;
+
+  const endedSessionId = String(result.rows[0].session_id);
 
   if (average_blinks_per_minute > 0 && average_blinks_per_minute < 12) {
     await pool.query(
@@ -164,19 +173,20 @@ export const endDetectionSession = async (data: EndDetectionSessionData) => {
       ON CONFLICT (user_id, event_key) DO NOTHING
       `,
       [
-        `session-low-blink-${session_id}`,
+        `session-low-blink-${endedSessionId}`,
         `ขณะนี้ ${average_blinks_per_minute.toFixed(1)} ครั้ง/นาที ควรกะพริบอย่างน้อย 12 ครั้ง/นาที`,
-        session_id,
+        endedSessionId,
         user_id,
       ],
-    );
+    ).catch((error) => console.error("Unable to create low-blink notification:", error));
   }
 
   // ==========================================
   // สร้าง App Blink Summary
   // ==========================================
 
-  await createAppBlinkSummary(session_id);
+  await createAppBlinkSummary(endedSessionId)
+    .catch((error) => console.error("Unable to create app blink summary:", error));
 
   return result.rows[0];
 };

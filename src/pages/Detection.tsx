@@ -316,7 +316,9 @@ export default function Detection() {
       }
     };
     void syncActiveSession();
-    const timer = window.setInterval(() => void syncActiveSession(), 2_000);
+    // The content bridge supplies live updates while this browser owns the
+    // detector. Backend polling is mainly a cross-device recovery fallback.
+    const timer = window.setInterval(() => void syncActiveSession(), externalSession ? 2_000 : 15_000);
     return () => window.clearInterval(timer);
   }, [externalSession]);
 
