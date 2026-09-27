@@ -61,6 +61,7 @@ const bottomMenus = [
   },
   {
     name: "Downloads",
+    label: "ดาวน์โหลด",
     icon: <LuDownload />,
   },
   {
@@ -175,7 +176,13 @@ export default function Sidebar({ current, onChange }: Props) {
 
           <h2>BlinkCare</h2>
           <div className="vertical-divider"></div>
-          <span className="page-title">{current === "Realtime" ? "Realtime Detection" : current}</span>
+          <span className="page-title">
+            {current === "Realtime"
+              ? "Realtime Detection"
+              : current === "Downloads"
+                ? "ดาวน์โหลดแอปและ Extension"
+                : current}
+          </span>
         </div>
       </header>
       <div className="sidebar">
@@ -235,7 +242,7 @@ export default function Sidebar({ current, onChange }: Props) {
             >
               {menu.icon}
 
-              <span>{menu.name}</span>
+              <span>{"label" in menu ? menu.label : menu.name}</span>
             </button>
           ))}
         </div>
