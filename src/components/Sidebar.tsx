@@ -75,6 +75,7 @@ export default function Sidebar({ current, onChange }: Props) {
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [userName, setUserName] = useState("");
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
 
   // ==========================
   // Check Login
@@ -89,6 +90,7 @@ export default function Sidebar({ current, onChange }: Props) {
   const loadCurrentUser = useCallback(async () => {
     if (!localStorage.getItem("accessToken")) {
       setUserName("");
+      setUserAvatar(null);
       return;
     }
     try {
@@ -96,9 +98,11 @@ export default function Sidebar({ current, onChange }: Props) {
       const result = await response.json();
       if (response.ok && typeof result.data?.user_name === "string") {
         setUserName(result.data.user_name);
+        setUserAvatar(typeof result.data.avatar === "string" ? result.data.avatar : null);
       }
     } catch {
       setUserName("");
+      setUserAvatar(null);
     }
   }, []);
 
@@ -259,7 +263,7 @@ export default function Sidebar({ current, onChange }: Props) {
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
               >
                 <div className="profile-left">
-                  <div className="avatar">{(userName.trim()[0] || "U").toLocaleUpperCase("th-TH")}</div>
+                  <div className="avatar">{userAvatar ? <img src={userAvatar} alt="รูปโปรไฟล์" /> : (userName.trim()[0] || "U").toLocaleUpperCase("th-TH")}</div>
 
                   <div>
                     <h4>{userName || "ผู้ใช้งาน"}</h4>

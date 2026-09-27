@@ -27,6 +27,7 @@ import ConnectingDevice from "./pages/ConnectingDevice";
 import Register from "./pages/Register";
 import GoogleCallback from "./pages/GoogleCallback";
 import Downloads from "./pages/Downloads";
+import Profile from "./pages/Profile";
 
 import "./components/Sidebar.css";
 import "./App.css";
@@ -46,6 +47,7 @@ function MainApp() {
     Notification: "/notifications",
     "Connecting Device": "/devices",
     Downloads: "/downloads",
+    Profile: "/profile",
   };
   const pagesByPath = Object.fromEntries(Object.entries(routes).map(([page, path]) => [path, page]));
   const page = pagesByPath[location.pathname] ?? "Overview";
@@ -114,6 +116,10 @@ function MainApp() {
 
         {page === "Downloads" && (
           <Downloads />
+        )}
+
+        {page === "Profile" && (
+          <Profile />
         )}
 
       </main>
