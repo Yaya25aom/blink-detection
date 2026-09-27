@@ -272,6 +272,15 @@ const localDateKey = () => {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 };
 
+const resetSessionPlanProgress = async (plan: ActivePlan | null, userId: string) => {
+  if (!plan) return;
+  const keys = plan.measures.flatMap((measure) => {
+    const base = `blinkcareMeasure:${userId}:${plan.plan_id}:${measure.plan_measure_id}`;
+    return [`${base}:progress`, `${base}:continuousRound`];
+  });
+  if (keys.length > 0) await chrome.storage.local.remove(keys);
+};
+
 const processPlanMeasures = async (activeSeconds: number, personPresent: boolean) => {
   const plan = await loadActivePlan();
   const auth = await getAuth();
@@ -358,9 +367,7 @@ const updateBadge = async (monitoring: boolean, paused = false) => {
 };
 
 const startBackendSession = async (auth: ExtensionAuth) => {
-  const existing = await chrome.storage.local.get("blinkcareSessionId");
-  if (existing.blinkcareSessionId) throw new Error("มี Session ที่ยังไม่ถูกปิด กรุณากดหยุดก่อนเริ่มใหม่");
-
+  // The backend heartbeat is authoritative; local storage can survive a crash.
   const response = await authenticatedFetch(auth, "/detection/start", {
     method: "POST",
     body: JSON.stringify({ source: "EXTENSION" }),
@@ -735,7 +742,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       previousActiveSeconds = 0;
       continuousActiveSeconds = 0;
       lastHelperPollAt = 0;
-      await loadActivePlan(true);
+      const plan = await loadActivePlan(true);
+      await resetSessionPlanProgress(plan, auth.userId);
       await ensureOffscreenDocument();
       await chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_START" });
     }).then(() => sendResponse({ ok: true })).catch((error: unknown) => sendResponse({
