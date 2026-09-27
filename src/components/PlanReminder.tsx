@@ -75,6 +75,9 @@ export default function PlanReminder() {
         copy.title,
         `${copy.body} · ${activePlan.plan_name}`,
         reminderEventId,
+        "PLAN_REMINDER",
+        measure.measure_code,
+        activePlan.plan_name,
       );
     };
 

@@ -37,6 +37,8 @@ export type PlanNotificationDetail = {
   body: string;
   reminderEventId?: number;
   category: NotificationCategory;
+  measureCode?: string;
+  planName?: string;
 };
 
 const playNotificationSound = async () => {
@@ -72,12 +74,14 @@ export const showPlanNotification = async (
   body: string,
   reminderEventId?: number,
   category: NotificationCategory = "PLAN_REMINDER",
+  measureCode?: string,
+  planName?: string,
 ) => {
   if (!isNotificationEnabled(category)) return false;
 
   addNotificationHistory(category, title, body);
   window.dispatchEvent(new CustomEvent("blinkcare:notification", {
-    detail: { title, body, reminderEventId, category } satisfies PlanNotificationDetail,
+    detail: { title, body, reminderEventId, category, measureCode, planName } satisfies PlanNotificationDetail,
   }));
 
   if (!readNotificationSettings().muted) void playNotificationSound();
@@ -85,11 +89,19 @@ export const showPlanNotification = async (
   const permission = await requestNotificationPermission();
   if (permission !== "granted") return false;
 
-  new Notification(title, {
+  const notification = new Notification(title, {
     body,
     icon: "/favicon.svg",
     tag: "blinkcare-eye-health-reminder",
     silent: readNotificationSettings().muted,
   });
+  if (reminderEventId) {
+    notification.onclick = () => {
+      const params = new URLSearchParams({ event: String(reminderEventId), title });
+      if (measureCode) params.set("measure", measureCode);
+      window.open(`/plan-activity?${params.toString()}`, "_blank", "noopener,noreferrer");
+      notification.close();
+    };
+  }
   return true;
 };

@@ -116,7 +116,7 @@ const notificationCopy = (measure: ActivePlanMeasure, planName: string) => {
 const createSystemNotification = async (
   title: string,
   message: string,
-  options: { reminderEventId?: number; category?: string } = {},
+  options: { reminderEventId?: number; category?: string; measureCode?: string } = {},
 ) => {
   const stored = await chrome.storage.local.get("blinkcareNotificationSettings");
   const settings = (stored.blinkcareNotificationSettings ?? {}) as NotificationSettings;
@@ -171,12 +171,16 @@ const createSystemNotification = async (
     silent: true,
     requireInteraction: true,
     buttons: options.reminderEventId
-      ? [{ title: "ทำสำเร็จ" }, { title: "ข้ามรอบนี้" }]
+      ? [{ title: "ดูวิธีทำ" }, { title: "ข้ามรอบนี้" }]
       : undefined,
   });
   if (options.reminderEventId) {
     await chrome.storage.local.set({
-      [`blinkcareNotificationAction:${notificationId}`]: options.reminderEventId,
+      [`blinkcareNotificationAction:${notificationId}`]: {
+        reminderEventId: options.reminderEventId,
+        measureCode: options.measureCode,
+        title,
+      },
     });
   }
 };
@@ -259,7 +263,7 @@ const createReminderEvent = async (plan: ActivePlan, measure: ActivePlanMeasure)
 const triggerPlanReminder = async (plan: ActivePlan, measure: ActivePlanMeasure) => {
   const reminderEventId = await createReminderEvent(plan, measure);
   const copy = notificationCopy(measure, plan.plan_name);
-  await createSystemNotification(copy.title, copy.message, { reminderEventId, category: "PLAN_REMINDER" });
+  await createSystemNotification(copy.title, copy.message, { reminderEventId, category: "PLAN_REMINDER", measureCode: measure.measure_code });
 };
 
 const localDateKey = () => {
@@ -509,25 +513,41 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
   void (async () => {
     const key = `blinkcareNotificationAction:${notificationId}`;
     const stored = await chrome.storage.local.get(key);
-    const reminderEventId = Number(stored[key]);
+    const action = stored[key] as { reminderEventId?: number; measureCode?: string; title?: string } | number | undefined;
+    const reminderEventId = Number(typeof action === "number" ? action : action?.reminderEventId);
     if (!reminderEventId) return;
     const auth = await getAuth();
     if (!auth) return;
-    const status = buttonIndex === 0 ? "COMPLETED" : "SKIPPED";
-    const response = await authenticatedFetch(auth, `/plans/reminders/${reminderEventId}`, {
+    if (buttonIndex === 0) {
+      const params = new URLSearchParams({ event: String(reminderEventId), title: typeof action === "object" ? action.title ?? "กิจกรรมพักสายตา" : "กิจกรรมพักสายตา" });
+      if (typeof action === "object" && action.measureCode) params.set("measure", action.measureCode);
+      await chrome.tabs.create({ url: `${auth.webBaseUrl}/plan-activity?${params.toString()}` });
+      await chrome.notifications.clear(notificationId);
+      return;
+    }
+    const status = "SKIPPED";
+    await authenticatedFetch(auth, `/plans/reminders/${reminderEventId}`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
     });
-    if (response.ok && status === "COMPLETED") {
-      await createSystemNotification(
-        "บันทึกการทำตามแผนแล้ว",
-        "เยี่ยมมาก ระบบบันทึกรอบที่ทำสำเร็จให้คุณแล้ว",
-        { category: "PLAN_COMPLETED" },
-      );
-    }
     await chrome.storage.local.remove(key);
     await chrome.notifications.clear(notificationId);
   })().catch((error) => console.error("Unable to update reminder response:", error));
+});
+
+chrome.notifications.onClicked.addListener((notificationId) => {
+  void (async () => {
+    const key = `blinkcareNotificationAction:${notificationId}`;
+    const stored = await chrome.storage.local.get(key);
+    const action = stored[key] as { reminderEventId?: number; measureCode?: string; title?: string } | undefined;
+    if (!action?.reminderEventId) return;
+    const auth = await getAuth();
+    if (!auth) return;
+    const params = new URLSearchParams({ event: String(action.reminderEventId), title: action.title ?? "กิจกรรมพักสายตา" });
+    if (action.measureCode) params.set("measure", action.measureCode);
+    await chrome.tabs.create({ url: `${auth.webBaseUrl}/plan-activity?${params.toString()}` });
+    await chrome.notifications.clear(notificationId);
+  })().catch((error) => console.error("Unable to open plan activity:", error));
 });
 
 chrome.notifications.onClosed.addListener((notificationId) => {

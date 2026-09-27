@@ -38,6 +38,7 @@
 .toast-actions { display: flex; gap: 7px; margin-top: 10px; }
 .toast-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 0 12px; border-radius: 5px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .toast-actions .toast-complete { border: 1px solid #16865a; color: #fff; background: #16865a; }
+.toast-actions .toast-guide { border: 1px solid #5366db; color: #fff; background: #5366db; }
 .toast-actions .toast-skip { border: 1px solid #ccd5e3; color: #536078; background: #fff; }
 
 @keyframes plan-toast-in {
