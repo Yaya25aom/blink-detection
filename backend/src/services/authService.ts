@@ -60,15 +60,18 @@ export const createLoginSession = async (user: LoginUser) => {
 
 export async function registerLocalUser(userName: string, email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
+  const normalizedUserName = userName.trim();
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
     const existing = await client.query(
-      `SELECT user_id FROM user_service.users WHERE LOWER(email) = $1 AND delete_flag = 0 LIMIT 1`,
-      [normalizedEmail],
+      `SELECT user_name, email FROM user_service.users
+       WHERE (LOWER(email) = $1 OR LOWER(user_name) = LOWER($2)) AND delete_flag = 0`,
+      [normalizedEmail, normalizedUserName],
     );
-    if (existing.rows.length > 0) throw new Error("EMAIL_ALREADY_EXISTS");
+    if (existing.rows.some((row) => row.email.toLowerCase() === normalizedEmail)) throw new Error("EMAIL_ALREADY_EXISTS");
+    if (existing.rows.some((row) => row.user_name.toLowerCase() === normalizedUserName.toLowerCase())) throw new Error("USERNAME_ALREADY_EXISTS");
 
     const userResult = await client.query<LoginUser>(
       `
@@ -76,7 +79,7 @@ export async function registerLocalUser(userName: string, email: string, passwor
       VALUES ($1, $2)
       RETURNING user_id, email, user_name, role_user
       `,
-      [userName.trim(), normalizedEmail],
+      [normalizedUserName, normalizedEmail],
     );
     const user = userResult.rows[0];
     if (!user) throw new Error("REGISTER_FAILED");
@@ -137,13 +140,23 @@ export async function findOrCreateGoogleUser(profile: {
     let user = emailResult.rows[0];
 
     if (!user) {
+      const baseName = (profile.displayName || normalizedEmail.split("@")[0] || "user").trim().slice(0, 90);
+      let availableName = baseName;
+      let suffix = 1;
+      while ((await client.query(
+        `SELECT 1 FROM user_service.users WHERE LOWER(user_name) = LOWER($1) AND delete_flag = 0 LIMIT 1`,
+        [availableName],
+      )).rows.length > 0) {
+        suffix += 1;
+        availableName = `${baseName}-${suffix}`.slice(0, 100);
+      }
       const created = await client.query<LoginUser>(
         `
         INSERT INTO user_service.users (user_name, email, email_verified)
         VALUES ($1, $2, TRUE)
         RETURNING user_id, email, user_name, role_user
         `,
-        [profile.displayName || normalizedEmail.split("@")[0], normalizedEmail],
+        [availableName, normalizedEmail],
       );
       user = created.rows[0];
     } else {
@@ -171,8 +184,9 @@ export async function findOrCreateGoogleUser(profile: {
   }
 }
 
-export async function login(email: string, password: string) {
-  const normalizedEmail = email.trim().toLowerCase();
+export async function login(identifier: string, password: string) {
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+  const usesEmail = normalizedIdentifier.includes("@");
   // 1. หา User
   const userResult = await pool.query(
     `
@@ -183,15 +197,15 @@ export async function login(email: string, password: string) {
       role_user,
       status_active
     FROM user_service.users
-    WHERE LOWER(email) = $1
+    WHERE ${usesEmail ? "LOWER(email)" : "LOWER(user_name)"} = $1
       AND delete_flag = 0
     LIMIT 1
     `,
-    [normalizedEmail],
+    [normalizedIdentifier],
   );
 
   if (userResult.rows.length === 0) {
-    throw new Error("Invalid email or password");
+    throw new Error("Invalid username/email or password");
   }
 
   const user = userResult.rows[0];
@@ -217,20 +231,20 @@ export async function login(email: string, password: string) {
   );
 
   if (authResult.rows.length === 0) {
-    throw new Error("Invalid email or password");
+    throw new Error("Invalid username/email or password");
   }
 
   const auth = authResult.rows[0];
 
   // 4. ตรวจ Password
   if (!auth.password_hash) {
-    throw new Error("Invalid email or password");
+    throw new Error("Invalid username/email or password");
   }
 
   const passwordMatch = await bcrypt.compare(password, auth.password_hash);
 
   if (!passwordMatch) {
-    throw new Error("Invalid email or password");
+    throw new Error("Invalid username/email or password");
   }
 
   if (shouldBypassOtp(user.email)) {
@@ -245,6 +259,7 @@ export async function login(email: string, password: string) {
   return {
     requiresOtp: true,
     user_id: user.user_id,
+    email: user.email,
     reference_code: otpResult.referenceCode,
     expires_in_seconds: otpResult.expiresInSeconds,
   };

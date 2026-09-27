@@ -66,10 +66,13 @@ export async function updateCurrentUserController(req: Request, res: Response) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ success: false, message: "รูปแบบอีเมลไม่ถูกต้อง" });
 
     const duplicate = await pool.query(
-      `SELECT 1 FROM user_service.users WHERE LOWER(email) = $1 AND user_id <> $2 AND delete_flag = 0 LIMIT 1`,
-      [email, userId],
+      `SELECT user_name, email FROM user_service.users
+       WHERE (LOWER(email) = $1 OR LOWER(user_name) = LOWER($2))
+         AND user_id <> $3 AND delete_flag = 0`,
+      [email, userName, userId],
     );
-    if (duplicate.rows.length > 0) return res.status(409).json({ success: false, message: "อีเมลนี้ถูกใช้งานแล้ว" });
+    if (duplicate.rows.some((row) => row.email.toLowerCase() === email)) return res.status(409).json({ success: false, message: "อีเมลนี้ถูกใช้งานแล้ว" });
+    if (duplicate.rows.some((row) => row.user_name.toLowerCase() === userName.toLowerCase())) return res.status(409).json({ success: false, message: "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว" });
 
     let avatarData: Buffer | null | undefined;
     let avatarMimeType: string | null | undefined;
@@ -100,6 +103,7 @@ export async function updateCurrentUserController(req: Request, res: Response) {
     return res.json({ success: true, message: "บันทึกโปรไฟล์แล้ว", data: { ...user, avatar_data: undefined, avatar_mime_type: undefined, avatar: profileAvatar(user.avatar_data, user.avatar_mime_type) } });
   } catch (error) {
     console.error("Update profile error:", error);
+    if ((error as { code?: string }).code === "23505") return res.status(409).json({ success: false, message: "ชื่อผู้ใช้หรืออีเมลนี้ถูกใช้งานแล้ว" });
     return res.status(500).json({ success: false, message: "ไม่สามารถบันทึกโปรไฟล์ได้" });
   }
 }
@@ -123,6 +127,15 @@ export async function changePasswordController(req: Request, res: Response) {
     const newPassword = String(req.body?.new_password ?? "");
     if (!/^\d{6}$/.test(otp) || !referenceCode) return res.status(400).json({ success: false, message: "กรุณากรอก OTP และ Ref ให้ครบ" });
     if (newPassword.length < 8) return res.status(400).json({ success: false, message: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" });
+    const currentAuth = await pool.query(
+      `SELECT password_hash FROM auth_service.user_auth
+       WHERE user_id = $1 AND login_provider = 'LOCAL' AND password_hash IS NOT NULL LIMIT 1`,
+      [userId],
+    );
+    if (!currentAuth.rows[0]) return res.status(400).json({ success: false, message: "บัญชี Google ยังไม่มีรหัสผ่านภายในระบบ" });
+    if (await bcrypt.compare(newPassword, currentAuth.rows[0].password_hash)) {
+      return res.status(400).json({ success: false, message: "รหัสผ่านใหม่นี้เป็นรหัสผ่านเดิม กรุณาตั้งรหัสผ่านใหม่" });
+    }
     await verifyOtp(userId, otp, referenceCode);
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const result = await pool.query(
@@ -161,6 +174,12 @@ export async function registerController(req: Request, res: Response) {
     if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {
       return res.status(409).json({ success: false, message: "อีเมลนี้ถูกใช้งานแล้ว" });
     }
+    if (error instanceof Error && error.message === "USERNAME_ALREADY_EXISTS") {
+      return res.status(409).json({ success: false, message: "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว" });
+    }
+    if ((error as { code?: string }).code === "23505") {
+      return res.status(409).json({ success: false, message: "ชื่อผู้ใช้หรืออีเมลนี้ถูกใช้งานแล้ว" });
+    }
     console.error("Register error:", error);
     return res.status(500).json({ success: false, message: "ไม่สามารถสร้างบัญชีได้" });
   }
@@ -184,16 +203,17 @@ export async function googleCallbackController(req: Request, res: Response) {
 
 export async function loginController(req: Request, res: Response) {
   try {
-    const { email, password } = req.body;
+    const identifier = req.body?.identifier ?? req.body?.email;
+    const { password } = req.body;
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and password are required",
+        message: "Username/email and password are required",
       });
     }
 
-    const result = await login(String(email).trim().toLowerCase(), password);
+    const result = await login(String(identifier).trim(), password);
 
     return res.status(200).json({
       success: true,

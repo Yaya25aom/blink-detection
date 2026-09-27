@@ -9,7 +9,7 @@ function Login() {
   const location = useLocation();
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/";
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,7 @@ function Login() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
+          identifier: identifier.trim(),
           password,
         }),
       });
@@ -57,7 +57,7 @@ function Login() {
           replace: true,
           state: {
             user_id: result.data.user_id,
-            email: email.trim().toLowerCase(),
+            email: result.data.email,
             reference_code: result.data.reference_code,
             returnTo,
           },
@@ -88,13 +88,13 @@ function Login() {
 
         <form onSubmit={handleLogin}>
           <div className="form-group">
-            <label>Email</label>
+            <label>Username or Email</label>
 
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Enter your username or email"
               required
             />
           </div>
