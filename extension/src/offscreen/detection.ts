@@ -22,6 +22,8 @@ let activeSeconds = 0;
 let lightingLevel: "GOOD" | "DARK" | "UNKNOWN" = "UNKNOWN";
 let currentEar = 0;
 let lastRealtimePublishAt = 0;
+let lastVideoTime = -1;
+let lastLightCheckAt = 0;
 let darkStartedAt = 0;
 const alertCooldowns = new Map<string, number>();
 const lightCanvas = document.createElement("canvas");
@@ -104,7 +106,8 @@ const publishDetectionUpdate = (countActiveSecond = false) => {
 const detectionLoop = async () => {
   if (!monitoring) return;
 
-  if (!paused && video.readyState >= 2) {
+  if (!paused && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
     const result = await detectFace(video);
     const face = result ? selectPrimaryFace(result.faceLandmarks) : null;
     const now = Date.now();
@@ -115,7 +118,7 @@ const detectionLoop = async () => {
       const eyes = extractEyeLandmarks(face);
       const averageEar = calculateAverageEAR(eyes.leftEye, eyes.rightEye);
       currentEar = averageEar;
-      detector.update(averageEar);
+      detector.update(averageEar, performance.now(), face);
       const total = detector.getBlinkCount();
       if (total > lastBlinkCount) {
         blinkTimestamps.push(now);
@@ -135,7 +138,8 @@ const detectionLoop = async () => {
       blinkTimestamps = blinkTimestamps.filter(
         (timestamp) => timestamp >= now - 60_000,
       );
-      if (lightContext) {
+      if (lightContext && now - lastLightCheckAt >= 1000) {
+        lastLightCheckAt = now;
         lightCanvas.width = 32;
         lightCanvas.height = 24;
         lightContext.drawImage(video, 0, 0, 32, 24);
@@ -161,16 +165,18 @@ const detectionLoop = async () => {
           `ขณะนี้ ${blinkTimestamps.length} ครั้ง/นาที ควรกะพริบอย่างน้อย 12 ครั้ง/นาที`,
         );
       }
-    } else if (now - (lastFaceSeenAt || monitoringStartedAt) >= 30_000) {
+    }
+    if (!face) detector.interrupt();
+    if (!face && now - (lastFaceSeenAt || monitoringStartedAt) >= 5_000) {
       activeStartedAt = 0;
       lightingLevel = "UNKNOWN";
       darkStartedAt = 0;
-      sendAlert("face-missing", "ไม่พบใบหน้า", "ระบบหยุดนับเวลาใช้งานชั่วคราว");
+      sendAlert("face-missing", "ไม่พบใบหน้า", "ระบบหยุดนับเวลาใช้งานชั่วคราว กรุณากลับมาอยู่ในมุมกล้อง");
     }
 
   }
 
-  detectionTimer = window.setTimeout(() => void detectionLoop(), 0);
+  detectionTimer = window.setTimeout(() => void detectionLoop(), 8);
 };
 
 const startMonitoring = async () => {
@@ -185,7 +191,7 @@ const startMonitoring = async () => {
   console.log("[BlinkCare] 3. Requesting camera...");
 
   stream = await navigator.mediaDevices.getUserMedia({
-    video: true,
+    video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
     audio: false,
   });
 
@@ -200,6 +206,8 @@ const startMonitoring = async () => {
   console.log("[BlinkCare] 6. Video playing");
 
   detector = new BlinkDetector();
+  lastVideoTime = -1;
+  lastLightCheckAt = 0;
   lastBlinkCount = 0;
   lastFaceSeenAt = 0;
   monitoringStartedAt = Date.now();
@@ -210,6 +218,7 @@ const startMonitoring = async () => {
   currentEar = 0;
   lastRealtimePublishAt = 0;
   darkStartedAt = 0;
+  alertCooldowns.clear();
 
   monitoring = true;
   paused = false;
@@ -259,6 +268,7 @@ const stopMonitoring = () => {
 const pauseMonitoring = () => {
   if (!monitoring || paused) return;
   paused = true;
+  detector.interrupt();
   lastFaceSeenAt = 0;
   void chrome.runtime.sendMessage({ type: "BLINKCARE_STATUS", monitoring: true, paused: true });
   publishDetectionUpdate();
@@ -268,6 +278,7 @@ const resumeMonitoring = () => {
   if (!monitoring || !paused) return;
   paused = false;
   lastFaceSeenAt = 0;
+  monitoringStartedAt = Date.now();
   activeStartedAt = 0;
   void chrome.runtime.sendMessage({ type: "BLINKCARE_STATUS", monitoring: true, paused: false });
 };

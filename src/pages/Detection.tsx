@@ -998,6 +998,7 @@ export default function Detection() {
     }
 
     let animationId: number;
+    let lastVideoTime = -1;
 
     let stopped = false;
 
@@ -1029,6 +1030,11 @@ export default function Detection() {
       // Face Detection
       // =================================================
 
+      if (videoRef.current.currentTime === lastVideoTime) {
+        animationId = requestAnimationFrame(detect);
+        return;
+      }
+      lastVideoTime = videoRef.current.currentTime;
       const result = await detectFace(videoRef.current);
 
       if (stopped) {
@@ -1066,7 +1072,7 @@ export default function Detection() {
           // Blink Detection
           // =============================================
 
-          blinkDetector.current.update(averageEAR);
+          blinkDetector.current.update(averageEAR, performance.now(), face);
 
           const totalBlink = blinkDetector.current.getBlinkCount();
 
@@ -1134,6 +1140,8 @@ export default function Detection() {
         }
       }
 
+      if (!result?.faceLandmarks.length) blinkDetector.current.interrupt();
+
       // =================================================
       // Continue Detection
       // =================================================
@@ -1153,6 +1161,7 @@ export default function Detection() {
       stopped = true;
 
       cancelAnimationFrame(animationId);
+      blinkDetector.current.interrupt();
     };
   }, [cameraOn, videoRef, saveBlinkRecord, calculateBlinkAverage]);
 

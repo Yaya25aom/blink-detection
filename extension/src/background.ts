@@ -126,41 +126,46 @@ const createSystemNotification = async (
   if (options.category === "POOR_LIGHTING" && settings.poorLighting === false) return;
   if (options.category === "PLAN_COMPLETED" && settings.planCompleted === false) return;
 
-  const auth = await getAuth();
-  if (auth) {
-    const eventId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const historyKey = `blinkcareNotificationHistory:${auth.userId}`;
-    const storedHistory = await chrome.storage.local.get(historyKey);
-    const history = Array.isArray(storedHistory[historyKey]) ? storedHistory[historyKey] : [];
-    await chrome.storage.local.set({
-      [historyKey]: [{
-        id: eventId,
-        category: options.category ?? "PLAN_REMINDER",
-        title,
-        body: message,
-        createdAt: new Date().toISOString(),
-      }, ...history].slice(0, 20),
-    });
-    const eventResponse = await authenticatedFetch(auth, "/notifications/events", {
-      method: "POST",
-      body: JSON.stringify({
-        event_key: eventId,
-        category: options.category ?? "PLAN_REMINDER",
-        title,
-        body: message,
-        source: "EXTENSION",
-        occurred_at: new Date().toISOString(),
-      }),
-    });
-    if (!eventResponse.ok) {
-      console.error("Unable to save notification event:", await eventResponse.text());
+  // History persistence and sound must not delay the visible notification.
+  void (async () => {
+    const auth = await getAuth();
+    if (auth) {
+      const eventId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const historyKey = `blinkcareNotificationHistory:${auth.userId}`;
+      const storedHistory = await chrome.storage.local.get(historyKey);
+      const history = Array.isArray(storedHistory[historyKey]) ? storedHistory[historyKey] : [];
+      await chrome.storage.local.set({
+        [historyKey]: [{
+          id: eventId,
+          category: options.category ?? "PLAN_REMINDER",
+          title,
+          body: message,
+          createdAt: new Date().toISOString(),
+        }, ...history].slice(0, 20),
+      });
+      const eventResponse = await authenticatedFetch(auth, "/notifications/events", {
+        method: "POST",
+        body: JSON.stringify({
+          event_key: eventId,
+          category: options.category ?? "PLAN_REMINDER",
+          title,
+          body: message,
+          source: "EXTENSION",
+          occurred_at: new Date().toISOString(),
+        }),
+      });
+      if (!eventResponse.ok) {
+        console.error("Unable to save notification event:", await eventResponse.text());
+      }
     }
-  }
+  })().catch((error) => console.error("Unable to save notification history:", error));
 
-  if (settings.muted !== true) {
-    await ensureOffscreenDocument();
-    await chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_PLAY_NOTIFICATION_SOUND" });
-  }
+  void (async () => {
+    if (settings.muted !== true) {
+      await ensureOffscreenDocument();
+      await chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_PLAY_NOTIFICATION_SOUND" });
+    }
+  })().catch((error) => console.error("Unable to play notification sound:", error));
 
   const notificationId = `blinkcare-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   await chrome.notifications.create(notificationId, {

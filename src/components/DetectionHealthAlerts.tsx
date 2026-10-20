@@ -10,7 +10,7 @@ const COOLDOWN_MS = 5 * 60 * 1000;
 
 export default function DetectionHealthAlerts() {
   useEffect(() => {
-    let missingFaceSeconds = 0;
+    let missingFaceSince: number | null = null;
     let darkSeconds = 0;
     let activeUserId = getCurrentUserId();
     const lastAlert: Record<string, number> = {};
@@ -25,25 +25,25 @@ export default function DetectionHealthAlerts() {
       const currentUserId = getCurrentUserId();
       if (!currentUserId) {
         activeUserId = null;
-        missingFaceSeconds = 0;
+        missingFaceSince = null;
         darkSeconds = 0;
         return;
       }
       if (currentUserId !== activeUserId) {
         activeUserId = currentUserId;
-        missingFaceSeconds = 0;
+        missingFaceSince = null;
         darkSeconds = 0;
         Object.keys(lastAlert).forEach((key) => delete lastAlert[key]);
       }
 
       const telemetry = (event as CustomEvent<DetectionTelemetry>).detail;
       if (!telemetry.monitoring) {
-        missingFaceSeconds = 0;
+        missingFaceSince = null;
         darkSeconds = 0;
         return;
       }
 
-      missingFaceSeconds = telemetry.personPresent ? 0 : missingFaceSeconds + 1;
+      missingFaceSince = telemetry.personPresent ? null : (missingFaceSince ?? telemetry.timestamp);
       darkSeconds = telemetry.lightingLevel === "DARK" ? darkSeconds + 1 : 0;
 
       if (
@@ -60,7 +60,7 @@ export default function DetectionHealthAlerts() {
         );
       }
 
-      if (missingFaceSeconds >= 30 && canAlert("face-missing", telemetry.timestamp)) {
+      if (missingFaceSince !== null && telemetry.timestamp - missingFaceSince >= 5_000 && canAlert("face-missing", telemetry.timestamp)) {
         void showPlanNotification(
           "ไม่พบใบหน้า",
           "ระบบหยุดนับเวลาใช้งานชั่วคราว กรุณากลับมาอยู่ในมุมกล้อง",
