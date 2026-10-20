@@ -82,32 +82,43 @@ setInterval(syncAuth, 1_500);
 void syncNotificationHistory();
 setInterval(() => void syncNotificationHistory(), 2_000);
 
+let liveStatus: Record<string, unknown> | null = null;
+let liveRevision = 0;
+const publishLiveDetection = (status: Record<string, unknown>) => {
+  liveStatus = status;
+  window.dispatchEvent(new CustomEvent("blinkcare:extension-detection", { detail: status }));
+  window.postMessage({ source: "BLINKCARE_EXTENSION", type: "BLINKCARE_LIVE_DETECTION", payload: status }, "*");
+};
 const syncLiveDetection = async () => {
+  const revision = liveRevision;
   try {
-    const status = await chrome.runtime.sendMessage({
-      type: "BLINKCARE_GET_LIVE_DETECTION",
-    });
-    window.dispatchEvent(new CustomEvent("blinkcare:extension-detection", {
-      detail: status,
-    }));
-    window.postMessage({
-      source: "BLINKCARE_EXTENSION",
-      type: "BLINKCARE_LIVE_DETECTION",
-      payload: status,
-    }, "*");
+    const status = await chrome.runtime.sendMessage({ type: "BLINKCARE_GET_LIVE_DETECTION" });
+    // An older polling response must not replace a freshly pushed blink.
+    if (revision === liveRevision && status?.ok) publishLiveDetection(status);
   } catch {
-    window.dispatchEvent(new CustomEvent("blinkcare:extension-detection", {
-      detail: { ok: false, monitoring: false },
-    }));
+    // Keep the last known state during an extension reload.
   }
 };
 
 void syncLiveDetection();
-// Push count changes immediately; polling only repairs missed state changes.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && (changes.blinkCount || changes.blinkcareCalibrated || changes.blinkcarePaused)) {
+  if (area !== "local") return;
+  liveRevision++;
+  if (!liveStatus || changes.blinkcareSessionId || changes.blinkcareAuthenticatedUserId) {
+    liveStatus = null;
     void syncLiveDetection();
+    return;
   }
+  const fields: Record<string, string> = {
+    blinkCount: "blinkCount", blinksPerMinute: "blinksPerMinute", activeSeconds: "activeSeconds",
+    currentEar: "currentEar", baselineEar: "baselineEar", closeThreshold: "closeThreshold",
+    detectionFps: "detectionFps", personPresent: "personPresent", lightingLevel: "lightingLevel",
+    blinkcareMonitoring: "monitoring", blinkcarePaused: "paused", blinkcareCalibrated: "calibrated",
+    blinkcareActiveApp: "activeApp",
+  };
+  const patch = Object.fromEntries(Object.entries(changes)
+    .filter(([key]) => fields[key]).map(([key, value]) => [fields[key], value.newValue]));
+  if (Object.keys(patch).length) publishLiveDetection({ ...liveStatus, ...patch });
 });
 setInterval(() => void syncLiveDetection(), 1000);
 

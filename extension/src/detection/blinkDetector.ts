@@ -30,7 +30,7 @@ export class BlinkDetector {
   private lastFrameAt = 0;
   private lastBlinkAt = -Infinity;
   private closedFrames = 0;
-  private strongClosure = false;
+  private closureCounted = false;
   private armed = false;
   private poseAnchor: number[] | null = null;
   private poseAnchorAt = 0;
@@ -41,7 +41,7 @@ export class BlinkDetector {
     this.eyeWasClosed = false;
     this.armed = false;
     this.closedFrames = 0;
-    this.strongClosure = false;
+    this.closureCounted = false;
     this.currentState = EyeState.OPEN;
     return this.currentState;
   }
@@ -138,26 +138,24 @@ export class BlinkDetector {
     if (!this.eyeWasClosed && closed) {
       this.eyeWasClosed = true;
       this.closedAt = now;
-      this.closedFrames = 1;
-      this.strongClosure = blink >= 0.65 || ear <= this.baselineEAR * 0.65;
-      this.currentState = EyeState.FULLY_CLOSED;
-      return this.currentState;
+      this.closedFrames = 0;
+      this.closureCounted = false;
     }
 
     if (this.eyeWasClosed) {
       if (closed) {
         this.closedFrames++;
-        this.strongClosure ||= blink >= 0.65 || ear <= this.baselineEAR * 0.65;
+      }
+      const strong = blink >= 0.65 || (closed && ear <= this.baselineEAR * 0.65);
+      // Publish on confirmed closure, not reopening. The latch prevents repeat
+      // counts while eyes stay shut. Weak evidence needs two closed frames.
+      if (closed && !this.closureCounted && (strong || this.closedFrames >= 2) &&
+          now - this.closedAt <= 500 && now - this.lastBlinkAt >= 100) {
+        this.blinkCount++;
+        this.lastBlinkAt = now;
+        this.closureCounted = true;
       }
       if (open) {
-        const duration = now - this.closedAt;
-        // A short blink may occupy only one camera frame. Accept strong bilateral
-        // evidence; weak isolated spikes still need a second closed frame.
-        if ((this.closedFrames >= 2 || this.strongClosure) &&
-            duration > 0 && duration <= 500 && now - this.lastBlinkAt >= 100) {
-          this.blinkCount++;
-          this.lastBlinkAt = now;
-        }
         this.armed = true;
         this.eyeWasClosed = false;
         this.closedAt = 0;

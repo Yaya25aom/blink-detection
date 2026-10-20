@@ -53,16 +53,18 @@ test('rejects weak one-frame spikes and threshold chatter', () => {
   assert.equal(detector.getBlinkCount(), 0);
 });
 
-test('rejects a held closure', () => {
+test('counts a held closure once, without repeating while closed', () => {
   const { detector, frames, frame } = setup();
-  frames(0.18, 25);
+  frame(0.18);
+  assert.equal(detector.getBlinkCount(), 1);
+  frames(0.18, 100);
   frame();
-  assert.equal(detector.getBlinkCount(), 0);
+  assert.equal(detector.getBlinkCount(), 1);
 });
 
 test('blinks at a settled downward angle are counted after the head movement', () => {
   const { detector, pose, frames, frame } = setup();
-  frames(0.18, 2);
+  frame(0.23, 33, 0.35);
   pose(0.9);
   frame();
   assert.equal(detector.getBlinkCount(), 0);
@@ -75,8 +77,8 @@ test('blinks at a settled downward angle are counted after the head movement', (
 test('missing face, invalid EAR, pause, and frame gaps cannot complete a blink', () => {
   for (const interrupt of [d => d.interrupt(), (_d, frame) => frame(NaN),
     (_d, frame) => frame(0.3, 300)]) {
-    const { detector, frames, frame } = setup();
-    frames(0.18, 3);
+    const { detector, frame } = setup();
+    frame(0.23, 33, 0.35);
     interrupt(detector, frame);
     frame();
     assert.equal(detector.getBlinkCount(), 0);
@@ -108,7 +110,7 @@ test('small nods and screen-to-screen turns cancel closures, then recover', () =
   for (const axis of ['pitch', 'yaw']) {
     const { detector, pose, frames, frame } = setup();
     for (let j = 0; j < 8; j++) {
-      const angle = 0.025 * j;
+      const angle = 0.1 * (j + 1);
       pose(axis === 'pitch' ? angle : 0, axis === 'yaw' ? angle : 0);
       frame(0.18);
     }
@@ -122,8 +124,8 @@ test('small nods and screen-to-screen turns cancel closures, then recover', () =
 });
 
 test('missing model signals cancel a closure instead of falling back to EAR', () => {
-  const { detector, result, frames, frame } = setup();
-  frames(0.18, 3);
+  const { detector, result, frame } = setup();
+  frame(0.23, 33, 0.35);
   result.faceBlendshapes = [];
   frame();
   assert.equal(detector.getBlinkCount(), 0);
@@ -171,10 +173,11 @@ test('invalid samples cannot create a baseline', () => {
 });
 
 for (const fps of [15, 30, 60]) {
-  test(`counts all ten brief blinks at ${fps} FPS on the first reopen frame`, () => {
+  test(`counts all ten brief blinks at ${fps} FPS on the first closed frame`, () => {
     const { detector, frame } = setup();
     for (let count = 1; count <= 10; count++) {
       frame(0.18, 1000 / fps);
+      assert.equal(detector.getBlinkCount(), count);
       frame(0.3, 1000 / fps);
       assert.equal(detector.getBlinkCount(), count);
       // ~3 blinks/second: no artificial hold-open requirement.
@@ -220,9 +223,31 @@ test('a cropped or collapsed eye cancels a pending blink', () => {
   for (const hide of [face => { face[33].x = -0.1; },
     face => { face[33].x = face[133].x; }, face => { face[160].y = NaN; }]) {
     const { detector, result, frame } = setup();
-    frame(0.18);
+    frame(0.23, 33, 0.35);
     hide(result.faceLandmarks[0]);
     frame();
     assert.equal(detector.getBlinkCount(), 0);
   }
+});
+
+test('weak closure counts on its second closed frame, without waiting for reopening', () => {
+  const { detector, frame } = setup();
+  frame(0.23, 33, 0.35);
+  assert.equal(detector.getBlinkCount(), 0);
+  frame(0.23, 33, 0.35);
+  assert.equal(detector.getBlinkCount(), 1);
+  for (let i = 0; i < 20; i++) frame(0.23, 33, 0.35);
+  assert.equal(detector.getBlinkCount(), 1);
+});
+
+test('losing tracking after an already counted closure never counts it again', () => {
+  const { detector, frame } = setup();
+  frame(0.18);
+  assert.equal(detector.getBlinkCount(), 1);
+  detector.interrupt();
+  frame(0.18, 150);
+  frame();
+  assert.equal(detector.getBlinkCount(), 1);
+  frame(0.18, 150);
+  assert.equal(detector.getBlinkCount(), 2);
 });
