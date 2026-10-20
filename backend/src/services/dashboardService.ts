@@ -241,7 +241,7 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
             ELSE 0
           END AS blink_rate
         FROM usage_stats
-        ORDER BY usage_stats.started_at, usage_id
+        ORDER BY usage_stats.started_at DESC, usage_id
         `,
         params,
       ),

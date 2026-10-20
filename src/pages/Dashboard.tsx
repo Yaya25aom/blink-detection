@@ -74,6 +74,20 @@ type DashboardData = {
   }>;
 };
 
+type AppSortKey = "started_at" | "app_name" | "duration_seconds" | "total_blinks" | "blink_rate" | "status";
+const appColumns: { key: AppSortKey; label: string }[] = [
+  { key: "started_at", label: "ช่วงเวลา" },
+  { key: "app_name", label: "แอปพลิเคชัน" },
+  { key: "duration_seconds", label: "ระยะเวลา" },
+  { key: "total_blinks", label: "กระพริบตา" },
+  { key: "blink_rate", label: "ครั้ง / นาที" },
+  { key: "status", label: "สถานะ" },
+];
+const appStatus = (rate: number, min: number, max: number) => rate < min
+  ? { rank: 0, tone: "low", label: "ต่ำกว่าเกณฑ์" }
+  : rate > max ? { rank: 2, tone: "high", label: "สูงกว่าเกณฑ์" }
+  : { rank: 1, tone: "normal", label: "อยู่ในเกณฑ์" };
+
 const localDate = () => {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
 };
@@ -185,6 +199,21 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const requestVersion = useRef(0);
+  const [appSort, setAppSort] = useState<{ key: AppSortKey; direction: "asc" | "desc" }>({ key: "started_at", direction: "desc" });
+  const sortedApps = useMemo(() => {
+    if (!data) return [];
+    const value = (app: DashboardData["app_usage"][number]) => appSort.key === "status"
+      ? appStatus(app.blink_rate, data.normal_range.min, data.normal_range.max).rank
+      : appSort.key === "started_at" ? Date.parse(app.started_at) : app[appSort.key];
+    return [...data.app_usage].sort((a, b) => {
+      const left = value(a), right = value(b);
+      const order = typeof left === "string" && typeof right === "string"
+        ? left.localeCompare(right, "th", { numeric: true, sensitivity: "base" })
+        : Number(left) - Number(right);
+      return order * (appSort.direction === "asc" ? 1 : -1) ||
+        Date.parse(b.started_at) - Date.parse(a.started_at) || a.usage_id.localeCompare(b.usage_id);
+    });
+  }, [data, appSort]);
 
   const loadDashboard = useCallback(async (silent = false) => {
     const version = ++requestVersion.current;
@@ -284,20 +313,38 @@ export default function Dashboard() {
           </div>
 
           <div className="dashboard-grid lower-grid">
-            <article className="dashboard-panel">
-              <div className="panel-heading"><div><h2>App Usage Timeline</h2><p>แต่ละช่วงการใช้แอป เรียงตามเวลา · เวลาไทย · วันนี้อัปเดตทุก 5 วินาที</p></div></div>
-              <div className="data-table-wrap"><table className="data-table"><thead><tr><th>ช่วงเวลา</th><th>แอปพลิเคชัน</th><th>ระยะเวลา</th><th>กระพริบตา</th><th>ครั้ง / นาที</th></tr></thead><tbody>
-                {data.app_usage.map((app) => (
-                  <tr key={app.usage_id}>
-                    <td>{formatTime(app.started_at)}–{app.is_active ? "กำลังใช้งาน" : formatTime(app.ended_at)}</td>
-                    <td><strong>{app.app_name}</strong></td>
-                    <td>{Math.floor(app.duration_seconds / 60)} นาที {app.duration_seconds % 60} วินาที</td>
-                    <td>{app.total_blinks} ครั้ง</td>
-                    <td>{app.blink_rate.toFixed(1)}</td>
-                  </tr>
-                ))}
-                {data.app_usage.length === 0 && <tr><td className="table-empty" colSpan={5}>ยังไม่มีช่วงการใช้แอปในวันที่เลือก</td></tr>}
-              </tbody></table></div>
+            <article className="dashboard-panel app-usage-panel">
+              <div className="panel-heading app-usage-heading">
+                <div><h2>App Usage Timeline</h2><p>แต่ละช่วงการใช้แอป · เวลาไทย · วันนี้อัปเดตทุก 5 วินาที</p></div>
+                <span className="app-sort-hint">กดหัวคอลัมน์เพื่อเรียงข้อมูล ↕</span>
+              </div>
+              <div className="data-table-wrap" tabIndex={0} role="region" aria-label="ช่วงเวลาการใช้แอป เลื่อนแนวนอนได้">
+                <table className="data-table app-usage-table">
+                  <thead><tr>{appColumns.map(({ key, label }) => (
+                    <th key={key} scope="col" aria-sort={appSort.key === key ? (appSort.direction === "asc" ? "ascending" : "descending") : "none"}>
+                      <button type="button" className={appSort.key === key ? "app-sort-button selected" : "app-sort-button"}
+                        onClick={() => setAppSort(current => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }))}>
+                        {label}<span aria-hidden="true">{appSort.key === key ? (appSort.direction === "asc" ? "↑" : "↓") : "↕"}</span>
+                      </button>
+                    </th>
+                  ))}</tr></thead>
+                  <tbody>
+                    {sortedApps.map((app) => {
+                      const status = appStatus(app.blink_rate, data.normal_range.min, data.normal_range.max);
+                      return <tr key={app.usage_id} className={app.is_active ? "app-usage-active" : undefined}>
+                        <td><span className="app-time">{formatTime(app.started_at)}–{app.is_active ? "ตอนนี้" : formatTime(app.ended_at)}</span>
+                          {app.is_active && <span className="app-live-badge">กำลังใช้งาน</span>}</td>
+                        <td><span className="app-name"><span className="app-icon"><LuMonitor /></span><strong>{app.app_name}</strong></span></td>
+                        <td><strong>{Math.floor(app.duration_seconds / 60)}</strong> นาที <span className="app-seconds">{app.duration_seconds % 60} วินาที</span></td>
+                        <td><span className="app-blink-count">{app.total_blinks.toLocaleString()}</span></td>
+                        <td><strong className={`app-rate ${status.tone}`}>{app.blink_rate.toFixed(1)}</strong></td>
+                        <td><span className={`app-status-badge ${status.tone}`}>{status.label}</span></td>
+                      </tr>;
+                    })}
+                    {sortedApps.length === 0 && <tr><td className="table-empty" colSpan={6}>ยังไม่มีช่วงการใช้แอปในวันที่เลือก</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </article>
 
             <article className="dashboard-panel session-panel">
