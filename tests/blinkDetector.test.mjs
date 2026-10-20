@@ -12,7 +12,12 @@ function setup(warmup = true) {
   let now = 1000;
   const categories = ['eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight']
     .map(categoryName => ({ categoryName, score: 0 }));
-  const result = { faceLandmarks: [[]], faceBlendshapes: [{ categories }],
+  const face = Array.from({ length: 468 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+  face[33].x = 0.3;
+  face[133].x = 0.4;
+  face[362].x = 0.6;
+  face[263].x = 0.7;
+  const result = { faceLandmarks: [face], faceBlendshapes: [{ categories }],
     facialTransformationMatrixes: [{ data: [] }] };
   const pose = (pitch = 0, yaw = 0) => {
     const c = Math.cos(pitch), s = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -55,16 +60,13 @@ test('rejects a held closure', () => {
   assert.equal(detector.getBlinkCount(), 0);
 });
 
-test('looking down cancels a pending blink and requires open eyes on return', () => {
+test('blinks at a settled downward angle are counted after the head movement', () => {
   const { detector, pose, frames, frame } = setup();
   frames(0.18, 2);
-  pose(0.7);
-  for (let i = 0; i < 20; i++) { frames(0.18, 3); frames(0.3, 5); }
-  pose();
-  frames(0.18, 3);
+  pose(0.9);
   frame();
   assert.equal(detector.getBlinkCount(), 0);
-  frames(0.3, 15);
+  frames(0.3, 8);
   frames(0.18, 3);
   frame();
   assert.equal(detector.getBlinkCount(), 1);
@@ -148,6 +150,7 @@ test('calibration normally completes in about one second', () => {
 test('moderate blink scores and overlapping gaze scores still count a real closure', () => {
   const { detector, categories, frame } = setup();
   categories[2].score = categories[3].score = 0.45;
+  frame();
   for (let i = 0; i < 3; i++) frame(0.18, 33, 0.4, 0.35);
   frame();
   assert.equal(detector.getBlinkCount(), 1);
@@ -195,4 +198,31 @@ test('strong bilateral blink does not depend on an exact EAR baseline', () => {
   frame(0.25, 33, 0.85);
   frame();
   assert.equal(detector.getBlinkCount(), 1);
+});
+
+for (const [pitch, yaw] of [[0.9, 0], [0, 0.9], [0.6, 0.6]]) {
+  test(`counts ten blinks with visible eyes at pitch ${pitch}, yaw ${yaw}`, () => {
+    const { detector, pose, categories, frame } = setup();
+    pose(pitch, yaw);
+    categories[2].score = categories[3].score = 0.8;
+    // Looking down narrows resting EAR too; the open reference follows the view.
+    for (let i = 0; i < 8; i++) frame(0.22, 33, 0.05);
+    for (let count = 1; count <= 10; count++) {
+      frame(0.12, 33, 0.8);
+      frame(0.22, 33, 0.05);
+      assert.equal(detector.getBlinkCount(), count);
+      frame(0.22, 100, 0.05);
+    }
+  });
+}
+
+test('a cropped or collapsed eye cancels a pending blink', () => {
+  for (const hide of [face => { face[33].x = -0.1; },
+    face => { face[33].x = face[133].x; }, face => { face[160].y = NaN; }]) {
+    const { detector, result, frame } = setup();
+    frame(0.18);
+    hide(result.faceLandmarks[0]);
+    frame();
+    assert.equal(detector.getBlinkCount(), 0);
+  }
 });

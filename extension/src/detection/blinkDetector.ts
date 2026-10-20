@@ -17,9 +17,8 @@ export class BlinkDetector {
   private calibrationFrames: number[] = [];
   private calibrationStartedAt: number | null = null;
   private calibrationBlinks: number[] = [];
-  private calibrationGaze: number[] = [];
   private restingBlink = 0;
-  private restingGaze = 0;
+  private lastOpenGaze: number | null = null;
   private baselineEAR = 0;
   private partialThreshold = 0;
   private fullThreshold = 0;
@@ -62,9 +61,20 @@ export class BlinkDetector {
       this.poseAnchor = rotation;
       this.poseAnchorAt = now;
     }
-    // About 35 degrees off camera: the far eye is no longer reliable.
-    if (moving || rotation[8] < 0.82) this.settleUntil = now + 150;
+    // Reject movement artifacts, not a fixed head angle. A settled downward or
+    // sideways view is usable when both eyes are still visible.
+    if (moving) this.settleUntil = now + 100;
     return now >= this.settleUntil;
+  }
+
+  private eyesVisible(result: FaceLandmarkerResult, index: number): boolean {
+    const face = result.faceLandmarks[index];
+    const eyes = [[33, 160, 158, 133, 153, 144], [362, 385, 387, 263, 373, 380]];
+    if (!face || eyes.flat().some(i => !face[i] ||
+      !Number.isFinite(face[i].x) || !Number.isFinite(face[i].y) ||
+      face[i].x < 0 || face[i].x > 1 || face[i].y < 0 || face[i].y > 1)) return false;
+    const widths = eyes.map(([a, , , b]) => Math.hypot(face[a].x - face[b].x, face[a].y - face[b].y));
+    return Math.min(...widths) >= 0.008 && Math.min(...widths) / Math.max(...widths) >= 0.2;
   }
 
   public update(ear: number, now: number, result: FaceLandmarkerResult, faceIndex = 0): EyeState {
@@ -75,7 +85,7 @@ export class BlinkDetector {
     const left = score("eyeBlinkLeft"), right = score("eyeBlinkRight");
     const downLeft = score("eyeLookDownLeft"), downRight = score("eyeLookDownRight");
     const poseValid = this.stablePose(result.facialTransformationMatrixes[faceIndex]?.data, now);
-    const validEyes = [left, right, downLeft, downRight]
+    const validEyes = this.eyesVisible(result, faceIndex) && [left, right, downLeft, downRight]
       .every(v => v !== undefined && Number.isFinite(v));
     const validEar = Number.isFinite(ear) && ear > 0 && ear < 0.65;
 
@@ -85,33 +95,39 @@ export class BlinkDetector {
         this.calibrationStartedAt ??= now;
         this.calibrationFrames.push(ear);
         this.calibrationBlinks.push(Math.max(left!, right!));
-        this.calibrationGaze.push(Math.max(downLeft!, downRight!));
       }
       const elapsed = now - (this.calibrationStartedAt ?? now);
       if (this.calibrationFrames.length &&
           ((elapsed >= 900 && this.calibrationFrames.length >= 20) || elapsed >= 2800)) {
         this.baselineEAR = percentile(this.calibrationFrames, 0.8);
         this.restingBlink = Math.min(0.35, percentile(this.calibrationBlinks, 0.3));
-        this.restingGaze = Math.min(0.5, percentile(this.calibrationGaze, 0.5));
         this.partialThreshold = this.baselineEAR * 0.84;
         this.fullThreshold = this.baselineEAR * 0.78;
         this.calibrated = true;
-        this.calibrationFrames = this.calibrationBlinks = this.calibrationGaze = [];
+        this.calibrationFrames = this.calibrationBlinks = [];
       }
       return this.interrupt();
     }
     if (!poseValid || !validEar || !validEyes) return this.interrupt();
 
-    // Gaze scores can rise during a real blink: reject clear downward gaze,
-    // not every small change. Require an EAR drop plus BOTH blink scores.
-    if (Math.max(downLeft!, downRight!) > Math.max(0.65, this.restingGaze + 0.25)) {
-      return this.interrupt();
-    }
     const blink = Math.min(left!, right!);
     const closed = blink >= 0.65 ||
       (ear <= this.fullThreshold && blink >= this.restingBlink + 0.2);
     const open = Math.max(left!, right!) <= this.restingBlink + 0.15 ||
       (ear >= this.baselineEAR * 0.88 && blink < this.restingBlink + 0.2);
+
+    const gaze = Math.max(downLeft!, downRight!);
+    // A gaze change can narrow the eyes without a blink. Once eyes reopen in
+    // that view, accept subsequent blinks there, even with a high look-down score.
+    if (closed && this.lastOpenGaze !== null && Math.abs(gaze - this.lastOpenGaze) > 0.25) {
+      return this.interrupt();
+    }
+    if (open) {
+      this.lastOpenGaze = gaze;
+      this.baselineEAR = ear;
+      this.partialThreshold = ear * 0.84;
+      this.fullThreshold = ear * 0.78;
+    }
 
     // One confirmed open frame arms detection; no extra delay between blinks.
     if (!this.armed) {
