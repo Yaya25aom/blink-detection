@@ -46,6 +46,7 @@ type ExtensionDetection = {
   personPresent: boolean;
   lightingLevel: "GOOD" | "DARK" | "UNKNOWN";
   activeApp: string | null;
+  detectionFps?: number;
   currentEar: number;
   baselineEar: number;
   closeThreshold: number;
@@ -99,6 +100,7 @@ export default function Detection() {
   // =====================================================
 
   const [ear, setEar] = useState(0);
+  const [detectionFps, setDetectionFps] = useState(0);
   const [baselineEar, setBaselineEar] = useState(0);
   const [closeThreshold, setCloseThreshold] = useState(0);
   const [calibrated, setCalibrated] = useState(false);
@@ -250,6 +252,7 @@ export default function Detection() {
       setDuration((current) => isNewSession ? detail.activeSeconds : Math.max(current, detail.activeSeconds));
       presenceActiveSeconds.current = detail.activeSeconds;
       setAverageBlinkPerMinute(detail.blinksPerMinute);
+      setDetectionFps(detail.paused ? 0 : (detail.detectionFps ?? 0));
       setEar(detail.currentEar);
       setBaselineEar(detail.baselineEar);
       setCloseThreshold(detail.closeThreshold);
@@ -999,6 +1002,8 @@ export default function Detection() {
 
     let animationId: number;
     let lastVideoTime = -1;
+    let fpsFrames = 0;
+    let fpsStartedAt = performance.now();
 
     let stopped = false;
 
@@ -1041,6 +1046,14 @@ export default function Detection() {
         return;
       }
 
+      fpsFrames++;
+      const frameTime = performance.now();
+      if (frameTime - fpsStartedAt >= 1000) {
+        setDetectionFps(Math.round(fpsFrames * 1000 / (frameTime - fpsStartedAt)));
+        fpsFrames = 0;
+        fpsStartedAt = frameTime;
+      }
+
       // =================================================
       // มี Face
       // =================================================
@@ -1073,6 +1086,9 @@ export default function Detection() {
           // =============================================
 
           blinkDetector.current.update(averageEAR, performance.now(), result, result.faceLandmarks.indexOf(face));
+          setCalibrated(blinkDetector.current.isCalibrated());
+          setBaselineEar(blinkDetector.current.getBaselineEAR());
+          setCloseThreshold(blinkDetector.current.getFullThreshold());
 
           const totalBlink = blinkDetector.current.getBlinkCount();
 
@@ -1448,7 +1464,7 @@ export default function Detection() {
         ================================================= */}
 
         <div className="stat-card">
-          <p>EAR</p>
+          <p>EAR · {sessionActive && !paused ? detectionFps : 0} FPS</p>
 
           <h2>{ear.toFixed(3)}</h2>
           <small>

@@ -54,6 +54,7 @@ export default function App() {
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [helperConnected, setHelperConnected] = useState(false);
   const [currentEar, setCurrentEar] = useState(0);
+  const [detectionFps, setDetectionFps] = useState(0);
   const [baselineEar, setBaselineEar] = useState(0);
   const [closeThreshold, setCloseThreshold] = useState(0);
   const [calibrated, setCalibrated] = useState(false);
@@ -75,6 +76,7 @@ export default function App() {
         "blinkcareActiveApp",
         "blinkcareHelperConnected",
         "currentEar",
+        "detectionFps",
         "baselineEar",
         "closeThreshold",
         "blinkcareCalibrated",
@@ -116,6 +118,7 @@ export default function App() {
       setActiveApp(typeof stored.blinkcareActiveApp === "string" ? stored.blinkcareActiveApp : null);
       setHelperConnected(stored.blinkcareHelperConnected === true);
       setCurrentEar(Number(stored.currentEar ?? 0));
+      setDetectionFps(Number(stored.detectionFps ?? 0));
       setBaselineEar(Number(stored.baselineEar ?? 0));
       setCloseThreshold(Number(stored.closeThreshold ?? 0));
       setCalibrated(stored.blinkcareCalibrated === true);
@@ -212,6 +215,7 @@ export default function App() {
       }
 
       if (changes.currentEar) setCurrentEar(Number(changes.currentEar.newValue ?? 0));
+      if (changes.detectionFps) setDetectionFps(Number(changes.detectionFps.newValue ?? 0));
       if (changes.baselineEar) setBaselineEar(Number(changes.baselineEar.newValue ?? 0));
       if (changes.closeThreshold) setCloseThreshold(Number(changes.closeThreshold.newValue ?? 0));
       if (changes.blinkcareCalibrated) setCalibrated(changes.blinkcareCalibrated.newValue === true);
@@ -459,6 +463,7 @@ export default function App() {
 
         </section>
         <section className="ear-status">
+          <div><span>ความเร็วตรวจจับ</span><strong>{detectionFps} FPS</strong></div>
           <div><span>EAR ปัจจุบัน</span><strong>{currentEar.toFixed(3)}</strong></div>
           <div><span>Baseline ตอนลืมตา</span><strong>{baselineEar > 0 ? baselineEar.toFixed(3) : "-"}</strong></div>
           <div><span>เกณฑ์ปิดตา</span><strong>{closeThreshold > 0 ? closeThreshold.toFixed(3) : "-"}</strong></div>

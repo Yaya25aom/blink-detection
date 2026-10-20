@@ -30,7 +30,8 @@ export class BlinkDetector {
   private closedAt = 0;
   private lastFrameAt = 0;
   private lastBlinkAt = -Infinity;
-  private openSince = 0;
+  private closedFrames = 0;
+  private strongClosure = false;
   private armed = false;
   private poseAnchor: number[] | null = null;
   private poseAnchorAt = 0;
@@ -40,7 +41,8 @@ export class BlinkDetector {
   public interrupt(): EyeState {
     this.eyeWasClosed = false;
     this.armed = false;
-    this.openSince = 0;
+    this.closedFrames = 0;
+    this.strongClosure = false;
     this.currentState = EyeState.OPEN;
     return this.currentState;
   }
@@ -105,34 +107,42 @@ export class BlinkDetector {
     if (Math.max(downLeft!, downRight!) > Math.max(0.65, this.restingGaze + 0.25)) {
       return this.interrupt();
     }
-    const closed = ear <= this.fullThreshold &&
-      Math.min(left!, right!) >= this.restingBlink + 0.2;
-    const open = ear >= this.baselineEAR * 0.88 &&
-      Math.max(left!, right!) <= this.restingBlink + 0.15;
+    const blink = Math.min(left!, right!);
+    const closed = blink >= 0.65 ||
+      (ear <= this.fullThreshold && blink >= this.restingBlink + 0.2);
+    const open = Math.max(left!, right!) <= this.restingBlink + 0.15 ||
+      (ear >= this.baselineEAR * 0.88 && blink < this.restingBlink + 0.2);
 
-    // Require stable open eyes before accepting another closure.
+    // One confirmed open frame arms detection; no extra delay between blinks.
     if (!this.armed) {
-      this.openSince = open ? (this.openSince || now) : 0;
-      if (this.openSince && now - this.openSince >= 100) this.armed = true;
+      this.armed = open;
       return this.currentState;
     }
 
     if (!this.eyeWasClosed && closed) {
       this.eyeWasClosed = true;
       this.closedAt = now;
+      this.closedFrames = 1;
+      this.strongClosure = blink >= 0.65 || ear <= this.baselineEAR * 0.65;
       this.currentState = EyeState.FULLY_CLOSED;
       return this.currentState;
     }
 
     if (this.eyeWasClosed) {
+      if (closed) {
+        this.closedFrames++;
+        this.strongClosure ||= blink >= 0.65 || ear <= this.baselineEAR * 0.65;
+      }
       if (open) {
         const duration = now - this.closedAt;
-        if (duration >= 40 && duration <= 500 && now - this.lastBlinkAt >= 180) {
+        // A short blink may occupy only one camera frame. Accept strong bilateral
+        // evidence; weak isolated spikes still need a second closed frame.
+        if ((this.closedFrames >= 2 || this.strongClosure) &&
+            duration > 0 && duration <= 500 && now - this.lastBlinkAt >= 100) {
           this.blinkCount++;
           this.lastBlinkAt = now;
         }
-        this.armed = false;
-        this.openSince = now;
+        this.armed = true;
         this.eyeWasClosed = false;
         this.closedAt = 0;
         this.currentState = EyeState.OPEN;

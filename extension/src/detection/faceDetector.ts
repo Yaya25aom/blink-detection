@@ -1,71 +1,16 @@
-import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import { createLandmarker } from "./createLandmarker";
 
-import type { FaceLandmarkerResult } from "@mediapipe/tasks-vision";
+let loading: ReturnType<typeof createLandmarker> | null = null;
 
-let faceLandmarker: FaceLandmarker | null = null;
-
-/**
- * โหลดโมเดล MediaPipe
- */
-export async function createFaceDetector() {
-    if (faceLandmarker) return faceLandmarker;
-
-    console.log("[MediaPipe] 1. Preparing WASM");
-
-    const wasmPath = chrome.runtime.getURL("mediapipe/wasm");
-
-    console.log("[MediaPipe] 2. WASM path:", wasmPath);
-
-    const vision = await FilesetResolver.forVisionTasks(wasmPath);
-
-    console.log("[MediaPipe] 3. WASM loaded");
-
-    const modelPath = chrome.runtime.getURL(
-        "models/face_landmarker.task"
-    );
-
-    console.log("[MediaPipe] 4. Model path:", modelPath);
-    console.log("[MediaPipe] 5. Creating FaceLandmarker with CPU...");
-
-    faceLandmarker = await FaceLandmarker.createFromOptions(
-        vision,
-        {
-            baseOptions: {
-                modelAssetPath: modelPath,
-                delegate: "CPU",
-            },
-
-            runningMode: "VIDEO",
-            outputFaceBlendshapes: true,
-            outputFacialTransformationMatrixes: true,
-            numFaces: 1,
-        }
-    );
-
-    console.log("[MediaPipe] 6. FaceLandmarker created successfully");
-
-    return faceLandmarker;
+export function createFaceDetector() {
+  return loading ??= createLandmarker(
+    chrome.runtime.getURL("mediapipe/wasm"),
+    chrome.runtime.getURL("models/face_landmarker.task"),
+  ).catch(error => { loading = null; throw error; });
 }
 
-/**
- * ตรวจจับใบหน้า
- */
-
-export async function detectFace(
-  video: HTMLVideoElement,
-): Promise<FaceLandmarkerResult | null> {
-  if (!faceLandmarker) return null;
-  // ==========================
-  // ตรวจสอบ Video
-  // ==========================
-
-  if (video.readyState < 2 || video.videoWidth <= 0 || video.videoHeight <= 0) {
-    return null;
-  }
-
-  return faceLandmarker.detectForVideo(
-    video,
-
-    performance.now(),
-  );
+export async function detectFace(video: HTMLVideoElement) {
+  if (!loading || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
+  const detector = await loading;
+  return detector.detectForVideo(video, performance.now());
 }

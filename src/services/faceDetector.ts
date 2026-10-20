@@ -1,80 +1,16 @@
-import {
-    FaceLandmarker,
-    FilesetResolver,
-} from "@mediapipe/tasks-vision";
+import { createLandmarker } from "../../extension/src/detection/createLandmarker";
 
-import type {
-    FaceLandmarkerResult,
-} from "@mediapipe/tasks-vision";
+let loading: ReturnType<typeof createLandmarker> | null = null;
 
-let faceLandmarker: FaceLandmarker | null = null;
-
-/**
- * โหลดโมเดล MediaPipe
- */
-export async function createFaceDetector() {
-
-    if (faceLandmarker) return faceLandmarker;
-
-    const vision = await FilesetResolver.forVisionTasks(
-
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
-
-    );
-
-    faceLandmarker = await FaceLandmarker.createFromOptions(
-        vision,
-        {
-
-            baseOptions: {
-
-                modelAssetPath:
-                    "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
-
-            },
-
-            runningMode: "VIDEO",
-            outputFaceBlendshapes: true,
-            outputFacialTransformationMatrixes: true,
-
-            numFaces: 5, // ตรวจหลายใบหน้า
-
-        }
-    );
-
-    return faceLandmarker;
+export function createFaceDetector() {
+  return loading ??= createLandmarker(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
+    "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
+  ).catch(error => { loading = null; throw error; });
 }
 
-/**
- * ตรวจจับใบหน้า
- */
-
-export async function detectFace(
-
-    video: HTMLVideoElement
-
-): Promise<FaceLandmarkerResult | null> {
-
-    if (!faceLandmarker) return null;
-    // ==========================
-  // ตรวจสอบ Video
-  // ==========================
-
-    if (
-        video.readyState < 2 ||
-        video.videoWidth <= 0 ||
-        video.videoHeight <= 0
-    ) {
-        return null;
-    }
-
-
-    return faceLandmarker.detectForVideo(
-
-        video,
-
-        performance.now()
-
-    );
-
+export async function detectFace(video: HTMLVideoElement) {
+  if (!loading || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
+  const detector = await loading;
+  return detector.detectForVideo(video, performance.now());
 }

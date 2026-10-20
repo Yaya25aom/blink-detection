@@ -23,6 +23,9 @@ let lightingLevel: "GOOD" | "DARK" | "UNKNOWN" = "UNKNOWN";
 let currentEar = 0;
 let lastRealtimePublishAt = 0;
 let lastVideoTime = -1;
+let detectionFps = 0;
+let fpsFrames = 0;
+let fpsStartedAt = 0;
 let lastLightCheckAt = 0;
 let darkStartedAt = 0;
 const alertCooldowns = new Map<string, number>();
@@ -96,6 +99,7 @@ const publishDetectionUpdate = (countActiveSecond = false) => {
     personPresent,
     lightingLevel,
     paused,
+    detectionFps: paused ? 0 : detectionFps,
     currentEar,
     baselineEar: detector.getBaselineEAR(),
     closeThreshold: detector.getFullThreshold(),
@@ -111,6 +115,12 @@ const detectionLoop = async () => {
     const result = await detectFace(video);
     const face = result ? selectPrimaryFace(result.faceLandmarks) : null;
     const now = Date.now();
+    fpsFrames++;
+    if (now - fpsStartedAt >= 1000) {
+      detectionFps = Math.round(fpsFrames * 1000 / (now - fpsStartedAt));
+      fpsFrames = 0;
+      fpsStartedAt = now;
+    }
 
     if (face && result) {
       lastFaceSeenAt = now;
@@ -207,6 +217,8 @@ const startMonitoring = async () => {
 
   detector = new BlinkDetector();
   lastVideoTime = -1;
+  detectionFps = fpsFrames = 0;
+  fpsStartedAt = Date.now();
   lastLightCheckAt = 0;
   lastBlinkCount = 0;
   lastFaceSeenAt = 0;
@@ -277,6 +289,8 @@ const pauseMonitoring = () => {
 const resumeMonitoring = () => {
   if (!monitoring || !paused) return;
   paused = false;
+  fpsFrames = 0;
+  fpsStartedAt = Date.now();
   lastFaceSeenAt = 0;
   monitoringStartedAt = Date.now();
   activeStartedAt = 0;

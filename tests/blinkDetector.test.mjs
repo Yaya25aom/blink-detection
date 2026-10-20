@@ -41,9 +41,9 @@ test('counts a normal blink immediately on reopening, including successive blink
   }
 });
 
-test('rejects one-frame spikes and threshold chatter', () => {
+test('rejects weak one-frame spikes and threshold chatter', () => {
   const { detector, frames, frame } = setup();
-  for (let i = 0; i < 10; i++) { frame(0.18); frame(); }
+  for (let i = 0; i < 10; i++) { frame(0.23, 33, 0.35); frame(); }
   frames(0.25, 10);
   assert.equal(detector.getBlinkCount(), 0);
 });
@@ -165,4 +165,34 @@ test('invalid samples cannot create a baseline', () => {
   const { detector, frame } = setup(false);
   for (let i = 0; i < 40; i++) frame(NaN, 100);
   assert.equal(detector.isCalibrated(), false);
+});
+
+for (const fps of [15, 30, 60]) {
+  test(`counts all ten brief blinks at ${fps} FPS on the first reopen frame`, () => {
+    const { detector, frame } = setup();
+    for (let count = 1; count <= 10; count++) {
+      frame(0.18, 1000 / fps);
+      frame(0.3, 1000 / fps);
+      assert.equal(detector.getBlinkCount(), count);
+      // ~3 blinks/second: no artificial hold-open requirement.
+      for (let i = 0; i < Math.ceil(fps / 3); i++) frame(0.3, 1000 / fps);
+    }
+  });
+}
+
+test('brief deep closures count even when model blink scores are modest', () => {
+  const { detector, frame } = setup();
+  for (let count = 1; count <= 10; count++) {
+    frame(0.18, 33, 0.35);
+    frame();
+    assert.equal(detector.getBlinkCount(), count);
+    frame(0.3, 100);
+  }
+});
+
+test('strong bilateral blink does not depend on an exact EAR baseline', () => {
+  const { detector, frame } = setup();
+  frame(0.25, 33, 0.85);
+  frame();
+  assert.equal(detector.getBlinkCount(), 1);
 });

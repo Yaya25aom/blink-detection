@@ -39,7 +39,7 @@ type ExtensionMessage =
   | { type: "BLINKCARE_ALERT"; title: string; message: string; category?: string }
   | { type: "BLINKCARE_BLINK_DETECTED"; ear: number; durationMs: number }
   | { type: "BLINKCARE_ERROR"; message: string }
-  | { type: "BLINKCARE_DETECTION_UPDATE"; blinkCount: number; blinksPerMinute: number; activeSeconds: number; personPresent: boolean; lightingLevel: "GOOD" | "DARK" | "UNKNOWN"; paused?: boolean; currentEar?: number; baselineEar?: number; closeThreshold?: number; calibrated?: boolean }
+  | { type: "BLINKCARE_DETECTION_UPDATE"; blinkCount: number; blinksPerMinute: number; activeSeconds: number; personPresent: boolean; lightingLevel: "GOOD" | "DARK" | "UNKNOWN"; paused?: boolean; detectionFps?: number; currentEar?: number; baselineEar?: number; closeThreshold?: number; calibrated?: boolean }
   | { type: "BLINKCARE_POPUP_START" }
   | { type: "BLINKCARE_POPUP_STOP" }
   | { type: "BLINKCARE_POPUP_PAUSE" }
@@ -587,6 +587,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       personPresent: message.personPresent,
       lightingLevel: message.lightingLevel,
       blinkcarePaused: message.paused === true,
+      detectionFps: Number(message.detectionFps ?? 0),
       currentEar: Number(message.currentEar ?? 0),
       baselineEar: Number(message.baselineEar ?? 0),
       closeThreshold: Number(message.closeThreshold ?? 0),
@@ -701,6 +702,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       "personPresent",
       "lightingLevel",
       "blinkcareActiveApp",
+      "detectionFps",
       "currentEar",
       "baselineEar",
       "closeThreshold",
@@ -717,6 +719,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       personPresent: stored.personPresent === true,
       lightingLevel: stored.lightingLevel ?? "UNKNOWN",
       activeApp: stored.blinkcareActiveApp ?? null,
+      detectionFps: Number(stored.detectionFps ?? 0),
       currentEar: Number(stored.currentEar ?? 0),
       baselineEar: Number(stored.baselineEar ?? 0),
       closeThreshold: Number(stored.closeThreshold ?? 0),

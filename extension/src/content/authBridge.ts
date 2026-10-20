@@ -103,7 +103,13 @@ const syncLiveDetection = async () => {
 };
 
 void syncLiveDetection();
-setInterval(() => void syncLiveDetection(), 250);
+// Push count changes immediately; polling only repairs missed state changes.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && (changes.blinkCount || changes.blinkcareCalibrated || changes.blinkcarePaused)) {
+    void syncLiveDetection();
+  }
+});
+setInterval(() => void syncLiveDetection(), 1000);
 
 window.addEventListener("blinkcare:extension-command", (event: Event) => {
   const detail = (event as CustomEvent<{ requestId?: string; action?: "START" | "STOP" | "PAUSE" | "RESUME" }>).detail;
