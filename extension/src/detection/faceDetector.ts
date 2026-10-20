@@ -36,6 +36,8 @@ export async function createFaceDetector() {
             },
 
             runningMode: "VIDEO",
+            outputFaceBlendshapes: true,
+            outputFacialTransformationMatrixes: true,
             numFaces: 1,
         }
     );

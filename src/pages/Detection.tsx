@@ -1072,7 +1072,7 @@ export default function Detection() {
           // Blink Detection
           // =============================================
 
-          blinkDetector.current.update(averageEAR, performance.now(), face);
+          blinkDetector.current.update(averageEAR, performance.now(), result, result.faceLandmarks.indexOf(face));
 
           const totalBlink = blinkDetector.current.getBlinkCount();
 

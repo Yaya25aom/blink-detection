@@ -10,15 +10,25 @@ const { BlinkDetector } = await import(`data:text/javascript;base64,${Buffer.fro
 function setup() {
   const detector = new BlinkDetector();
   let now = 1000;
-  const face = Array.from({ length: 468 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
-  face[10].y = 0.2;
-  face[152].y = 0.8;
-  face[33].x = 0.3;
-  face[263].x = 0.7;
-  const frame = (ear = 0.3, ms = 33) => detector.update(ear, now += ms, face);
+  const categories = ['eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight']
+    .map(categoryName => ({ categoryName, score: 0 }));
+  const result = { faceLandmarks: [[]], faceBlendshapes: [{ categories }],
+    facialTransformationMatrixes: [{ data: [] }] };
+  const pose = (pitch = 0, yaw = 0) => {
+    const c = Math.cos(pitch), s = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
+    result.facialTransformationMatrixes[0].data = [cy, s * sy, -c * sy, 0,
+      0, c, s, 0, sy, -s * cy, c * cy, 0, 0, 0, 0, 1];
+  };
+  pose();
+  const frame = (ear = 0.3, ms = 33, blink = ear < 0.23 ? 0.85 : 0.05, rightBlink = blink) => {
+    categories[0].score = blink;
+    categories[1].score = rightBlink;
+    return detector.update(ear, now += ms, result);
+  };
   const frames = (ear, count) => { for (let i = 0; i < count; i++) frame(ear); };
   frames(0.3, 36);
-  return { detector, face, frame, frames };
+  return { detector, result, categories, pose, frame, frames };
+
 }
 
 test('counts a normal blink immediately on reopening, including successive blinks', () => {
@@ -46,15 +56,15 @@ test('rejects a held closure', () => {
 });
 
 test('looking down cancels a pending blink and requires open eyes on return', () => {
-  const { detector, face, frames, frame } = setup();
+  const { detector, pose, frames, frame } = setup();
   frames(0.18, 2);
-  face[152].z = 0.18;
+  pose(0.7);
   for (let i = 0; i < 20; i++) { frames(0.18, 3); frames(0.3, 5); }
-  face[152].z = 0;
+  pose();
   frames(0.18, 3);
   frame();
   assert.equal(detector.getBlinkCount(), 0);
-  frames(0.3, 5);
+  frames(0.3, 15);
   frames(0.18, 3);
   frame();
   assert.equal(detector.getBlinkCount(), 1);
@@ -69,4 +79,50 @@ test('missing face, invalid EAR, pause, and frame gaps cannot complete a blink',
     frame();
     assert.equal(detector.getBlinkCount(), 0);
   }
+});
+
+test('lower EAR from looking below camera is not a blink', () => {
+  const { detector, frame, categories } = setup();
+  for (let i = 0; i < 10; i++) {
+    categories[2].score = categories[3].score = 0.7;
+    // Even an erroneous blink score must not override a clear downward gaze.
+    for (let j = 0; j < 3; j++) frame(0.18, 33, 0.8);
+    categories[2].score = categories[3].score = 0;
+    for (let j = 0; j < 6; j++) frame();
+  }
+  assert.equal(detector.getBlinkCount(), 0);
+});
+
+test('EAR changes without both eye-blink scores never count', () => {
+  const { detector, frame } = setup();
+  for (let j = 0; j < 3; j++) frame(0.18, 33, 0.1);
+  frame();
+  for (let j = 0; j < 3; j++) frame(0.18, 33, 0.9, 0.05);
+  frame();
+  assert.equal(detector.getBlinkCount(), 0);
+});
+
+test('small nods and screen-to-screen turns cancel closures, then recover', () => {
+  for (const axis of ['pitch', 'yaw']) {
+    const { detector, pose, frames, frame } = setup();
+    for (let j = 0; j < 8; j++) {
+      const angle = 0.025 * j;
+      pose(axis === 'pitch' ? angle : 0, axis === 'yaw' ? angle : 0);
+      frame(0.18);
+    }
+    frame();
+    assert.equal(detector.getBlinkCount(), 0);
+    frames(0.3, 15);
+    frames(0.18, 3);
+    frame();
+    assert.equal(detector.getBlinkCount(), 1);
+  }
+});
+
+test('missing model signals cancel a closure instead of falling back to EAR', () => {
+  const { detector, result, frames, frame } = setup();
+  frames(0.18, 3);
+  result.faceBlendshapes = [];
+  frame();
+  assert.equal(detector.getBlinkCount(), 0);
 });

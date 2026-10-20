@@ -1,4 +1,4 @@
-import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
+import type { FaceLandmarkerResult } from "@mediapipe/tasks-vision";
 
 export const EyeState = {
   OPEN: "OPEN",
@@ -19,7 +19,6 @@ export class BlinkDetector {
   private baselineEAR = 0;
   private partialThreshold = 0;
   private fullThreshold = 0;
-  private reopenThreshold = 0;
   private calibrated = false;
   private currentState: EyeState = EyeState.OPEN;
   private blinkCount = 0;
@@ -29,7 +28,9 @@ export class BlinkDetector {
   private lastBlinkAt = -Infinity;
   private openSince = 0;
   private armed = false;
-  private neutralTilt: number | null = null;
+  private poseAnchor: number[] | null = null;
+  private poseAnchorAt = 0;
+  private settleUntil = 0;
 
   // Keep the total, but never join a blink across missing/invalid frames.
   public interrupt(): EyeState {
@@ -39,35 +40,54 @@ export class BlinkDetector {
     this.currentState = EyeState.OPEN;
     if (!this.calibrated) {
       this.calibrationFrames = [];
-      this.neutralTilt = null;
     }
     return this.currentState;
   }
 
-  private facingCamera(face: NormalizedLandmark[]): boolean {
-    const top = face[10], chin = face[152], left = face[33], right = face[263];
-    if (!top || !chin || !left || !right) return false;
-    const tilt = (chin.z - top.z) / Math.hypot(chin.x - top.x, chin.y - top.y);
-    const turn = Math.abs(right.z - left.z) / Math.hypot(right.x - left.x, right.y - left.y);
-    if (!Number.isFinite(tilt) || !Number.isFinite(turn) || turn > 0.6) return false;
-    this.neutralTilt ??= tilt;
-    return Math.abs(tilt - this.neutralTilt) < 0.2;
+  private stablePose(matrix: number[] | undefined, now: number): boolean {
+    if (!matrix || matrix.length !== 16 || !matrix.every(Number.isFinite)) return false;
+    // Compare rotation only: translation/face size must not look like a nod.
+    const rotation = [0, 1, 2, 4, 5, 6, 8, 9, 10].map(i => matrix[i]);
+    for (let column = 0; column < 3; column++) {
+      const start = column * 3;
+      const length = Math.hypot(...rotation.slice(start, start + 3));
+      if (length < 0.001) return false;
+      for (let i = start; i < start + 3; i++) rotation[i] /= length;
+    }
+    const moving = this.poseAnchor?.some((v, i) => Math.abs(v - rotation[i]) > 0.04);
+    if (!this.poseAnchor || moving || now - this.poseAnchorAt >= 150) {
+      this.poseAnchor = rotation;
+      this.poseAnchorAt = now;
+    }
+    // About 35 degrees off camera: the far eye is no longer reliable.
+    if (moving || rotation[8] < 0.82) this.settleUntil = now + 250;
+    return now >= this.settleUntil;
   }
 
-  public update(ear: number, now = performance.now(), face?: NormalizedLandmark[]): EyeState {
+  public update(ear: number, now: number, result: FaceLandmarkerResult, faceIndex = 0): EyeState {
     if (now - this.lastFrameAt > 200) this.interrupt();
     this.lastFrameAt = now;
-    if (!Number.isFinite(ear) || ear <= 0.04 || ear >= 0.65 ||
-        (face && !this.facingCamera(face))) return this.interrupt();
+    const categories = result.faceBlendshapes[faceIndex]?.categories ?? [];
+    const score = (name: string) => categories.find(c => c.categoryName === name)?.score;
+    const left = score("eyeBlinkLeft"), right = score("eyeBlinkRight");
+    const downLeft = score("eyeLookDownLeft"), downRight = score("eyeLookDownRight");
+    const poseValid = this.stablePose(result.facialTransformationMatrixes[faceIndex]?.data, now);
+    if (!poseValid || !Number.isFinite(ear) || ear <= 0 ||
+        ![left, right, downLeft, downRight].every(v => v !== undefined && Number.isFinite(v))) {
+      return this.interrupt();
+    }
+    // Look-down and blink are separate model outputs. EAR alone confuses them.
+    if (Math.max(downLeft!, downRight!) > 0.35) return this.interrupt();
+    const closed = Math.min(left!, right!) >= 0.6;
+    const open = Math.max(left!, right!) <= 0.25;
 
     if (!this.calibrated) {
       this.calibrationFrames.push(ear);
       if (this.calibrationFrames.length >= this.CALIBRATION_FRAME_COUNT) {
         this.baselineEAR = percentile(this.calibrationFrames, 0.8);
-        // Relative thresholds support naturally small eyes without a fixed floor.
+        // EAR thresholds are retained for telemetry; counting uses both blink scores.
         this.partialThreshold = this.baselineEAR * 0.84;
         this.fullThreshold = this.baselineEAR * 0.78;
-        this.reopenThreshold = this.baselineEAR * 0.88;
         this.calibrated = true;
       }
       return EyeState.OPEN;
@@ -75,12 +95,12 @@ export class BlinkDetector {
 
     // Require stable open eyes before accepting another closure.
     if (!this.armed) {
-      this.openSince = ear >= this.reopenThreshold ? (this.openSince || now) : 0;
+      this.openSince = open ? (this.openSince || now) : 0;
       if (this.openSince && now - this.openSince >= 100) this.armed = true;
       return this.currentState;
     }
 
-    if (!this.eyeWasClosed && ear <= this.fullThreshold) {
+    if (!this.eyeWasClosed && closed) {
       this.eyeWasClosed = true;
       this.closedAt = now;
       this.currentState = EyeState.FULLY_CLOSED;
@@ -88,7 +108,7 @@ export class BlinkDetector {
     }
 
     if (this.eyeWasClosed) {
-      if (ear >= this.reopenThreshold) {
+      if (open) {
         const duration = now - this.closedAt;
         if (duration >= 40 && duration <= 500 && now - this.lastBlinkAt >= 180) {
           this.blinkCount++;
@@ -100,14 +120,14 @@ export class BlinkDetector {
         this.closedAt = 0;
         this.currentState = EyeState.OPEN;
       } else {
-        this.currentState = ear <= this.fullThreshold
+        this.currentState = closed
           ? EyeState.FULLY_CLOSED
           : EyeState.PARTIAL_CLOSED;
       }
       return this.currentState;
     }
 
-    this.currentState = ear <= this.partialThreshold
+    this.currentState = !open
       ? EyeState.PARTIAL_CLOSED
       : EyeState.OPEN;
     return this.currentState;

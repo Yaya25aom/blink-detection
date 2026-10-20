@@ -112,13 +112,13 @@ const detectionLoop = async () => {
     const face = result ? selectPrimaryFace(result.faceLandmarks) : null;
     const now = Date.now();
 
-    if (face) {
+    if (face && result) {
       lastFaceSeenAt = now;
       if (activeStartedAt === 0) activeStartedAt = now;
       const eyes = extractEyeLandmarks(face);
       const averageEar = calculateAverageEAR(eyes.leftEye, eyes.rightEye);
       currentEar = averageEar;
-      detector.update(averageEar, performance.now(), face);
+      detector.update(averageEar, performance.now(), result, result.faceLandmarks.indexOf(face));
       const total = detector.getBlinkCount();
       if (total > lastBlinkCount) {
         blinkTimestamps.push(now);

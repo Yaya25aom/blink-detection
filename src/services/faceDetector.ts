@@ -34,6 +34,8 @@ export async function createFaceDetector() {
             },
 
             runningMode: "VIDEO",
+            outputFaceBlendshapes: true,
+            outputFacialTransformationMatrixes: true,
 
             numFaces: 5, // ตรวจหลายใบหน้า
 
