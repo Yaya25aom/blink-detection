@@ -83,17 +83,22 @@ export class BlinkDetector {
     if (now - this.lastFrameAt > 200) this.interrupt();
     this.lastFrameAt = now;
     const categories = result.faceBlendshapes[faceIndex]?.categories ?? [];
-    const score = (name: string) => categories.find(c => c.categoryName === name)?.score;
+    const score = (name: string) => {
+      const value = categories.find(c => c.categoryName === name)?.score;
+      return Number.isFinite(value) ? value! : 0;
+    };
     const left = score("eyeBlinkLeft"), right = score("eyeBlinkRight");
     const downLeft = score("eyeLookDownLeft"), downRight = score("eyeLookDownRight");
     const poseValid = this.stablePose(result.facialTransformationMatrixes[faceIndex]?.data, now);
-    const validEyes = this.eyesVisible(result, faceIndex) && [left, right, downLeft, downRight]
-      .every(v => v !== undefined && Number.isFinite(v));
-    const validEar = Number.isFinite(ear) && ear > 0 && ear < 0.65;
+    const validEyes = this.eyesVisible(result, faceIndex);
+    const validEar = Number.isFinite(ear) && ear >= 0 && ear < 0.65;
+    // Deep closure is direct eye geometry evidence. Auxiliary model scores and
+    // head/gaze filters must not veto it (e.g. baseline .390, EAR .020).
+    const deepClosure = this.calibrated && ear <= this.baselineEAR * 0.45;
 
     // Collect across interruptions; small movements must not restart calibration.
     if (!this.calibrated) {
-      if (validEar && validEyes) {
+      if (validEar && ear > 0.04 && validEyes) {
         this.calibrationStartedAt ??= now;
         this.calibrationFrames.push(ear);
         this.calibrationBlinks.push(Math.max(left!, right!));
@@ -110,13 +115,17 @@ export class BlinkDetector {
       }
       return this.interrupt();
     }
-    if (!poseValid || !validEar || !validEyes) return this.interrupt();
+    if (!validEar || !validEyes) return this.interrupt();
+    // A pose rejection is not an eye reopening. Preserve the latch so the
+    // next clearly closed frame can count, without counting a held closure twice.
+    if (!poseValid && !deepClosure) return this.currentState;
 
     const blink = Math.min(left!, right!);
-    const closed = blink >= 0.65 ||
+    const closed = deepClosure || blink >= 0.65 ||
       (ear <= this.fullThreshold && blink >= this.restingBlink + 0.2);
-    const fullyOpen = Math.max(left!, right!) <= this.restingBlink + 0.15 ||
-      (ear >= this.baselineEAR * 0.88 && blink < this.restingBlink + 0.2);
+    const fullyOpen = !closed && (
+      Math.max(left!, right!) <= this.restingBlink + 0.15 ||
+      (ear >= this.baselineEAR * 0.88 && blink < this.restingBlink + 0.2));
 
     // A rapid double blink may reopen only briefly while model scores lag.
     // Require recovered eye geometry and lower scores; never rearm while closed.
@@ -126,7 +135,7 @@ export class BlinkDetector {
     const gaze = Math.max(downLeft!, downRight!);
     // A gaze change can narrow the eyes without a blink. Once eyes reopen in
     // that view, accept subsequent blinks there, even with a high look-down score.
-    if (closed && this.lastOpenGaze !== null && Math.abs(gaze - this.lastOpenGaze) > 0.25) {
+    if (closed && !deepClosure && this.lastOpenGaze !== null && Math.abs(gaze - this.lastOpenGaze) > 0.25) {
       return this.interrupt();
     }
     if (fullyOpen) {

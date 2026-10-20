@@ -304,3 +304,52 @@ test('a lower resting view still recalibrates after it stays steady', () => {
   frame(0.12, 33, 0.35);
   assert.equal(detector.getBlinkCount(), 1);
 });
+
+test('reported baseline .390 and EAR .020 counts immediately even with conflicting auxiliary scores', () => {
+  const { detector, result, categories, pose, frame } = setup(false);
+  for (let i = 0; i < 36; i++) frame(0.390, 1000 / 30, 0.05);
+  assert.ok(Math.abs(detector.getFullThreshold() - 0.3042) < 0.001);
+  categories[2].score = categories[3].score = 0.9;
+  pose(0.3);
+  frame(0.020, 1000 / 30, 0.02);
+  assert.equal(detector.getBlinkCount(), 1);
+  for (let i = 0; i < 30; i++) frame(0.020, 1000 / 30, 0.02);
+  assert.equal(detector.getBlinkCount(), 1);
+  assert.equal(detector.getBaselineEAR(), 0.390);
+  result.faceBlendshapes = [];
+  result.facialTransformationMatrixes = [];
+  frame(0.020);
+  assert.equal(detector.getBlinkCount(), 1);
+});
+
+test('five deep closures at 30 FPS count without waiting for model blink scores', () => {
+  const { detector, frame } = setup(false);
+  for (let i = 0; i < 36; i++) frame(0.390, 1000 / 30, 0.05);
+  for (let count = 1; count <= 5; count++) {
+    frame(0.020, 1000 / 30, 0.02);
+    assert.equal(detector.getBlinkCount(), count);
+    frame(0.390, 1000 / 30, 0.05);
+  }
+});
+
+test('zero EAR is a valid closure but invalid or cropped geometry is not', () => {
+  const { detector, frame, result } = setup();
+  frame(0, 33, 0.02);
+  assert.equal(detector.getBlinkCount(), 1);
+  frame();
+  result.faceLandmarks[0][33].x = NaN;
+  frame(0.020, 33, 0.02);
+  assert.equal(detector.getBlinkCount(), 1);
+});
+
+test('a preceding pose-rejected frame cannot disarm a clear deep closure', () => {
+  const { detector, pose, frame } = setup();
+  pose(0.3);
+  frame(0.25, 33, 0.05);
+  frame(0.020, 33, 0.02);
+  assert.equal(detector.getBlinkCount(), 1);
+  pose(0.6);
+  frame(0.2, 33, 0.3);
+  frame(0.020, 33, 0.02);
+  assert.equal(detector.getBlinkCount(), 1);
+});
