@@ -15,7 +15,11 @@ const percentile = (values: number[], ratio: number) => {
 
 export class BlinkDetector {
   private calibrationFrames: number[] = [];
-  private readonly CALIBRATION_FRAME_COUNT = 30;
+  private calibrationStartedAt: number | null = null;
+  private calibrationBlinks: number[] = [];
+  private calibrationGaze: number[] = [];
+  private restingBlink = 0;
+  private restingGaze = 0;
   private baselineEAR = 0;
   private partialThreshold = 0;
   private fullThreshold = 0;
@@ -38,9 +42,6 @@ export class BlinkDetector {
     this.armed = false;
     this.openSince = 0;
     this.currentState = EyeState.OPEN;
-    if (!this.calibrated) {
-      this.calibrationFrames = [];
-    }
     return this.currentState;
   }
 
@@ -54,13 +55,13 @@ export class BlinkDetector {
       if (length < 0.001) return false;
       for (let i = start; i < start + 3; i++) rotation[i] /= length;
     }
-    const moving = this.poseAnchor?.some((v, i) => Math.abs(v - rotation[i]) > 0.04);
+    const moving = this.poseAnchor?.some((v, i) => Math.abs(v - rotation[i]) > 0.07);
     if (!this.poseAnchor || moving || now - this.poseAnchorAt >= 150) {
       this.poseAnchor = rotation;
       this.poseAnchorAt = now;
     }
     // About 35 degrees off camera: the far eye is no longer reliable.
-    if (moving || rotation[8] < 0.82) this.settleUntil = now + 250;
+    if (moving || rotation[8] < 0.82) this.settleUntil = now + 150;
     return now >= this.settleUntil;
   }
 
@@ -72,26 +73,42 @@ export class BlinkDetector {
     const left = score("eyeBlinkLeft"), right = score("eyeBlinkRight");
     const downLeft = score("eyeLookDownLeft"), downRight = score("eyeLookDownRight");
     const poseValid = this.stablePose(result.facialTransformationMatrixes[faceIndex]?.data, now);
-    if (!poseValid || !Number.isFinite(ear) || ear <= 0 ||
-        ![left, right, downLeft, downRight].every(v => v !== undefined && Number.isFinite(v))) {
-      return this.interrupt();
-    }
-    // Look-down and blink are separate model outputs. EAR alone confuses them.
-    if (Math.max(downLeft!, downRight!) > 0.35) return this.interrupt();
-    const closed = Math.min(left!, right!) >= 0.6;
-    const open = Math.max(left!, right!) <= 0.25;
+    const validEyes = [left, right, downLeft, downRight]
+      .every(v => v !== undefined && Number.isFinite(v));
+    const validEar = Number.isFinite(ear) && ear > 0 && ear < 0.65;
 
+    // Collect across interruptions; small movements must not restart calibration.
     if (!this.calibrated) {
-      this.calibrationFrames.push(ear);
-      if (this.calibrationFrames.length >= this.CALIBRATION_FRAME_COUNT) {
+      if (validEar && validEyes) {
+        this.calibrationStartedAt ??= now;
+        this.calibrationFrames.push(ear);
+        this.calibrationBlinks.push(Math.max(left!, right!));
+        this.calibrationGaze.push(Math.max(downLeft!, downRight!));
+      }
+      const elapsed = now - (this.calibrationStartedAt ?? now);
+      if (this.calibrationFrames.length &&
+          ((elapsed >= 900 && this.calibrationFrames.length >= 20) || elapsed >= 2800)) {
         this.baselineEAR = percentile(this.calibrationFrames, 0.8);
-        // EAR thresholds are retained for telemetry; counting uses both blink scores.
+        this.restingBlink = Math.min(0.35, percentile(this.calibrationBlinks, 0.3));
+        this.restingGaze = Math.min(0.5, percentile(this.calibrationGaze, 0.5));
         this.partialThreshold = this.baselineEAR * 0.84;
         this.fullThreshold = this.baselineEAR * 0.78;
         this.calibrated = true;
+        this.calibrationFrames = this.calibrationBlinks = this.calibrationGaze = [];
       }
-      return EyeState.OPEN;
+      return this.interrupt();
     }
+    if (!poseValid || !validEar || !validEyes) return this.interrupt();
+
+    // Gaze scores can rise during a real blink: reject clear downward gaze,
+    // not every small change. Require an EAR drop plus BOTH blink scores.
+    if (Math.max(downLeft!, downRight!) > Math.max(0.65, this.restingGaze + 0.25)) {
+      return this.interrupt();
+    }
+    const closed = ear <= this.fullThreshold &&
+      Math.min(left!, right!) >= this.restingBlink + 0.2;
+    const open = ear >= this.baselineEAR * 0.88 &&
+      Math.max(left!, right!) <= this.restingBlink + 0.15;
 
     // Require stable open eyes before accepting another closure.
     if (!this.armed) {

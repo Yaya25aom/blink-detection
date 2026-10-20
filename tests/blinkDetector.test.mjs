@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../extension/src/detection/blinkDetector.ts
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } });
 const { BlinkDetector } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
-function setup() {
+function setup(warmup = true) {
   const detector = new BlinkDetector();
   let now = 1000;
   const categories = ['eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight']
@@ -26,7 +26,7 @@ function setup() {
     return detector.update(ear, now += ms, result);
   };
   const frames = (ear, count) => { for (let i = 0; i < count; i++) frame(ear); };
-  frames(0.3, 36);
+  if (warmup) frames(0.3, 36);
   return { detector, result, categories, pose, frame, frames };
 
 }
@@ -125,4 +125,44 @@ test('missing model signals cancel a closure instead of falling back to EAR', ()
   result.faceBlendshapes = [];
   frame();
   assert.equal(detector.getBlinkCount(), 0);
+});
+
+test('calibration finishes within three seconds despite interruptions and low FPS', () => {
+  const { detector, pose, frame } = setup(false);
+  for (let i = 0; i <= 14; i++) {
+    pose(i % 2 ? 0.15 : 0);
+    detector.interrupt();
+    frame(0.3, 200);
+  }
+  assert.equal(detector.isCalibrated(), true);
+  assert.equal(detector.getBaselineEAR(), 0.3);
+  assert.equal(detector.getBlinkCount(), 0);
+});
+
+test('calibration normally completes in about one second', () => {
+  const { detector, frames } = setup(false);
+  frames(0.3, 30);
+  assert.equal(detector.isCalibrated(), true);
+});
+
+test('moderate blink scores and overlapping gaze scores still count a real closure', () => {
+  const { detector, categories, frame } = setup();
+  categories[2].score = categories[3].score = 0.45;
+  for (let i = 0; i < 3; i++) frame(0.18, 33, 0.4, 0.35);
+  frame();
+  assert.equal(detector.getBlinkCount(), 1);
+});
+
+test('higher resting blink scores are calibrated per user', () => {
+  const { detector, frame } = setup(false);
+  for (let i = 0; i < 36; i++) frame(0.3, 33, 0.3);
+  for (let i = 0; i < 3; i++) frame(0.18, 33, 0.55);
+  frame(0.3, 33, 0.3);
+  assert.equal(detector.getBlinkCount(), 1);
+});
+
+test('invalid samples cannot create a baseline', () => {
+  const { detector, frame } = setup(false);
+  for (let i = 0; i < 40; i++) frame(NaN, 100);
+  assert.equal(detector.isCalibrated(), false);
 });
