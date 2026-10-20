@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   LuActivity,
@@ -46,7 +46,11 @@ type DashboardData = {
     blink_rate: number;
   }>;
   app_usage: Array<{
+    usage_id: string;
+    is_active: boolean;
     app_name: string;
+    started_at: string;
+    ended_at: string;
     total_blinks: number;
     duration_seconds: number;
     blink_rate: number;
@@ -71,9 +75,7 @@ type DashboardData = {
 };
 
 const localDate = () => {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
 };
 
 const formatDuration = (seconds: number) => {
@@ -88,6 +90,7 @@ const formatTime = (date: string) =>
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Asia/Bangkok",
   }).format(new Date(date));
 
 const comparisonText = (value: number | null, hasPrevious: boolean, previous: string) => {
@@ -181,23 +184,35 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const requestVersion = useRef(0);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const loadDashboard = useCallback(async (silent = false) => {
+    const version = ++requestVersion.current;
+    if (!silent) { setLoading(true); setError(""); }
     try {
       const response = await apiFetch(`/dashboard?date=${date}`);
       if (!response.ok) throw new Error(response.status === 401 ? "Please sign in to view your dashboard" : "Unable to load dashboard data");
       const result = await response.json();
-      setData(result.data);
+      if (version === requestVersion.current) { setData(result.data); setError(""); }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to load dashboard data");
+      if (!silent && version === requestVersion.current) {
+        setError(requestError instanceof Error ? requestError.message : "Unable to load dashboard data");
+      }
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [date]);
 
-  useEffect(() => { void loadDashboard(); }, [loadDashboard]);
+  useEffect(() => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async (silent = false) => {
+      await loadDashboard(silent);
+      if (!stopped && date === localDate()) timer = setTimeout(() => void refresh(true), 5000);
+    };
+    void refresh();
+    return () => { stopped = true; clearTimeout(timer); requestVersion.current++; };
+  }, [date, loadDashboard]);
 
   const health = useMemo(() => {
     if (!data || data.summary.session_count === 0) return { label: "ยังไม่มีข้อมูล", tone: "empty" };
@@ -270,10 +285,18 @@ export default function Dashboard() {
 
           <div className="dashboard-grid lower-grid">
             <article className="dashboard-panel">
-              <div className="panel-heading"><div><h2>App Usage Summary</h2><p>Screen time and blink health by application</p></div></div>
-              <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Application</th><th>Duration</th><th>Blinks</th><th>Rate / min</th><th>Status</th></tr></thead><tbody>
-                {data.app_usage.map((app) => <tr key={app.app_name}><td><strong>{app.app_name}</strong></td><td>{formatDuration(app.duration_seconds)}</td><td>{app.total_blinks}</td><td>{app.blink_rate.toFixed(1)}</td><td><span className={`table-status ${app.blink_rate < data.normal_range.min ? "low" : "normal"}`}>{app.blink_rate < data.normal_range.min ? "Below normal" : "Normal"}</span></td></tr>)}
-                {data.app_usage.length === 0 && <tr><td className="table-empty" colSpan={5}>No app usage recorded</td></tr>}
+              <div className="panel-heading"><div><h2>App Usage Timeline</h2><p>แต่ละช่วงการใช้แอป เรียงตามเวลา · เวลาไทย · วันนี้อัปเดตทุก 5 วินาที</p></div></div>
+              <div className="data-table-wrap"><table className="data-table"><thead><tr><th>ช่วงเวลา</th><th>แอปพลิเคชัน</th><th>ระยะเวลา</th><th>กระพริบตา</th><th>ครั้ง / นาที</th></tr></thead><tbody>
+                {data.app_usage.map((app) => (
+                  <tr key={app.usage_id}>
+                    <td>{formatTime(app.started_at)}–{app.is_active ? "กำลังใช้งาน" : formatTime(app.ended_at)}</td>
+                    <td><strong>{app.app_name}</strong></td>
+                    <td>{Math.floor(app.duration_seconds / 60)} นาที {app.duration_seconds % 60} วินาที</td>
+                    <td>{app.total_blinks} ครั้ง</td>
+                    <td>{app.blink_rate.toFixed(1)}</td>
+                  </tr>
+                ))}
+                {data.app_usage.length === 0 && <tr><td className="table-empty" colSpan={5}>ยังไม่มีช่วงการใช้แอปในวันที่เลือก</td></tr>}
               </tbody></table></div>
             </article>
 

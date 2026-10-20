@@ -204,36 +204,44 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
       ),
       pool.query(
         `
-        WITH usage_stats AS (
+        WITH day_bounds AS (
           SELECT
-            aus.usage_id,
-            aus.app_name,
-            aus.duration_seconds,
-            COUNT(br.id)::INTEGER AS blink_count
+            ($2::date::timestamp AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'UTC' AS day_start,
+            (($2::date + 1)::timestamp AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'UTC' AS day_end
+        ), usage_intervals AS (
+          SELECT
+            aus.usage_id, aus.session_id, aus.app_name,
+            GREATEST(aus.started_at, bounds.day_start) AS started_at,
+            LEAST(COALESCE(aus.ended_at, ds.ended_at, NOW() AT TIME ZONE 'UTC'), bounds.day_end) AS ended_at,
+            aus.ended_at IS NULL AND ds.ended_at IS NULL
+              AND (NOW() AT TIME ZONE 'UTC') < bounds.day_end AS is_active
           FROM detection_service.app_usage_session aus
           JOIN detection_service.detection_session ds ON ds.session_id = aus.session_id
-          LEFT JOIN detection_service.blink_record br
-            ON br.detection_id = aus.session_id
-            AND br.timestamp >= aus.started_at
-            AND br.timestamp < aus.ended_at
+          CROSS JOIN day_bounds bounds
           WHERE ds.user_id = $1
-            AND ds.ended_at IS NOT NULL
-            AND ((ds.started_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok')::date = $2::date
-            AND aus.ended_at IS NOT NULL
-          GROUP BY aus.usage_id, aus.app_name, aus.duration_seconds
+            AND aus.started_at < bounds.day_end
+            AND COALESCE(aus.ended_at, ds.ended_at, NOW() AT TIME ZONE 'UTC') > bounds.day_start
+        ), usage_stats AS (
+          SELECT
+            usage.usage_id, usage.app_name, usage.started_at, usage.ended_at, usage.is_active,
+            GREATEST(0, FLOOR(EXTRACT(EPOCH FROM usage.ended_at - usage.started_at)))::INTEGER AS duration_seconds,
+            COUNT(br.id)::INTEGER AS total_blinks
+          FROM usage_intervals usage
+          LEFT JOIN detection_service.blink_record br
+            ON br.detection_id = usage.session_id
+            AND br.timestamp >= usage.started_at AND br.timestamp < usage.ended_at
+          GROUP BY usage.usage_id, usage.app_name, usage.started_at, usage.ended_at, usage.is_active
         )
-        SELECT
-          app_name,
-          COALESCE(SUM(blink_count), 0)::INTEGER AS total_blinks,
-          COALESCE(SUM(duration_seconds), 0)::INTEGER AS duration_seconds,
-          CASE WHEN COALESCE(SUM(duration_seconds), 0) > 0
-            THEN COALESCE(SUM(blink_count), 0)::DECIMAL
-              / (SUM(duration_seconds)::DECIMAL / 60)
+        SELECT usage_id, app_name,
+          started_at AT TIME ZONE 'UTC' AS started_at,
+          ended_at AT TIME ZONE 'UTC' AS ended_at,
+          is_active, total_blinks, duration_seconds,
+          CASE WHEN duration_seconds > 0
+            THEN total_blinks::DECIMAL / (duration_seconds::DECIMAL / 60)
             ELSE 0
           END AS blink_rate
         FROM usage_stats
-        GROUP BY app_name
-        ORDER BY duration_seconds DESC, app_name
+        ORDER BY usage_stats.started_at, usage_id
         `,
         params,
       ),
@@ -299,7 +307,7 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
   const summary = summaryResult.rows[0];
   const previous = previousResult.rows[0];
   const toNumber = (value: unknown) => Number(value ?? 0);
-  const totalAppsUsed = appsResult.rows.length;
+  const totalAppsUsed = new Set(appsResult.rows.map((row) => row.app_name)).size;
   const blinkRate = toNumber(summary.average_blinks_per_minute);
   const screenHours = toNumber(summary.total_duration_seconds) / 3600;
   const blinkRisk = blinkRate > 0 ? Math.min(60, Math.max(0, ((NORMAL_BLINK_MIN - blinkRate) / NORMAL_BLINK_MIN) * 60)) : 0;
@@ -344,7 +352,11 @@ export const getDashboardSummary = async (userId: string, date?: string) => {
       blink_rate: toNumber(row.blink_rate),
     })),
     app_usage: appsResult.rows.map((row) => ({
+      usage_id: row.usage_id,
+      is_active: row.is_active,
       app_name: row.app_name,
+      started_at: row.started_at,
+      ended_at: row.ended_at,
       total_blinks: toNumber(row.total_blinks),
       duration_seconds: toNumber(row.duration_seconds),
       blink_rate: toNumber(row.blink_rate),
