@@ -1,3 +1,4 @@
+import { startCameraFrames } from "../detection/cameraFrames";
 import { BlinkDetector } from "../detection/blinkDetector";
 import { calculateAverageEAR } from "../detection/earCalculator";
 import { extractEyeLandmarks } from "../detection/eyeExtractor";
@@ -8,7 +9,7 @@ const video = document.querySelector<HTMLVideoElement>("#camera");
 if (!video) throw new Error("Camera video element was not found");
 
 let stream: MediaStream | null = null;
-let detectionTimer: number | null = null;
+let stopFrames: (() => void) | null = null;
 let presenceTimer: number | null = null;
 let monitoring = false;
 let paused = false;
@@ -22,7 +23,6 @@ let activeSeconds = 0;
 let lightingLevel: "GOOD" | "DARK" | "UNKNOWN" = "UNKNOWN";
 let currentEar = 0;
 let lastRealtimePublishAt = 0;
-let lastVideoTime = -1;
 let detectionFps = 0;
 let fpsFrames = 0;
 let fpsStartedAt = 0;
@@ -107,12 +107,12 @@ const publishDetectionUpdate = (countActiveSecond = false) => {
   });
 };
 
-const detectionLoop = async () => {
+const detectionLoop = async (frame: VideoFrame | HTMLVideoElement, capturedAt: number) => {
   if (!monitoring) return;
 
-  if (!paused && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
-    lastVideoTime = video.currentTime;
-    const result = await detectFace(video);
+  if (!paused) {
+    const result = await detectFace(frame);
+    if (!monitoring || paused) return;
     const face = result ? selectPrimaryFace(result.faceLandmarks) : null;
     const now = Date.now();
     fpsFrames++;
@@ -128,7 +128,7 @@ const detectionLoop = async () => {
       const eyes = extractEyeLandmarks(face);
       const averageEar = calculateAverageEAR(eyes.leftEye, eyes.rightEye);
       currentEar = averageEar;
-      detector.update(averageEar, performance.now(), result, result.faceLandmarks.indexOf(face));
+      detector.update(averageEar, capturedAt, result, result.faceLandmarks.indexOf(face));
       const total = detector.getBlinkCount();
       if (total > lastBlinkCount) {
         blinkTimestamps.push(now);
@@ -152,7 +152,7 @@ const detectionLoop = async () => {
         lastLightCheckAt = now;
         lightCanvas.width = 32;
         lightCanvas.height = 24;
-        lightContext.drawImage(video, 0, 0, 32, 24);
+        lightContext.drawImage(frame, 0, 0, 32, 24);
         const pixels = lightContext.getImageData(0, 0, 32, 24).data;
         let brightness = 0;
         for (let index = 0; index < pixels.length; index += 4) {
@@ -186,7 +186,6 @@ const detectionLoop = async () => {
 
   }
 
-  detectionTimer = window.setTimeout(() => void detectionLoop(), 8);
 };
 
 const startMonitoring = async () => {
@@ -216,7 +215,6 @@ const startMonitoring = async () => {
   console.log("[BlinkCare] 6. Video playing");
 
   detector = new BlinkDetector();
-  lastVideoTime = -1;
   detectionFps = fpsFrames = 0;
   fpsStartedAt = Date.now();
   lastLightCheckAt = 0;
@@ -244,14 +242,17 @@ const startMonitoring = async () => {
 
   publishDetectionUpdate();
   presenceTimer = window.setInterval(() => publishDetectionUpdate(true), 1000);
-  void detectionLoop();
+  stopFrames = startCameraFrames(video, detectionLoop, error => {
+    stopMonitoring();
+    void chrome.runtime.sendMessage({ type: "BLINKCARE_ERROR", message: errorMessage(error) });
+  });
 };
 
 const stopMonitoring = () => {
   monitoring = false;
   paused = false;
-  if (detectionTimer !== null) window.clearTimeout(detectionTimer);
-  detectionTimer = null;
+  stopFrames?.();
+  stopFrames = null;
   if (presenceTimer !== null) window.clearInterval(presenceTimer);
   presenceTimer = null;
   stream?.getTracks().forEach((track) => track.stop());

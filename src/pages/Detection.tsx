@@ -14,6 +14,7 @@ import { extractEyeLandmarks } from "../services/eyeExtractor";
 
 import { calculateAverageEAR } from "../services/earCalculator";
 
+import { startCameraFrames } from "../../extension/src/detection/cameraFrames";
 import { BlinkDetector } from "../services/blinkDetector";
 import {
   addDailyActiveSecond,
@@ -1000,8 +1001,8 @@ export default function Detection() {
       return;
     }
 
-    let animationId: number;
-    let lastVideoTime = -1;
+    const video = videoRef.current;
+    if (!video) return;
     let fpsFrames = 0;
     let fpsStartedAt = performance.now();
 
@@ -1011,36 +1012,12 @@ export default function Detection() {
     // Detect
     // ===================================================
 
-    const detect = async () => {
+    const detect = async (frame: VideoFrame | HTMLVideoElement, capturedAt: number) => {
       if (stopped) {
         return;
       }
 
-      // =================================================
-      // Check Video
-      // =================================================
-
-      if (
-        !videoRef.current ||
-        videoRef.current.readyState < 2 ||
-        videoRef.current.videoWidth === 0 ||
-        videoRef.current.videoHeight === 0
-      ) {
-        animationId = requestAnimationFrame(detect);
-
-        return;
-      }
-
-      // =================================================
-      // Face Detection
-      // =================================================
-
-      if (videoRef.current.currentTime === lastVideoTime) {
-        animationId = requestAnimationFrame(detect);
-        return;
-      }
-      lastVideoTime = videoRef.current.currentTime;
-      const result = await detectFace(videoRef.current);
+      const result = await detectFace(frame);
 
       if (stopped) {
         return;
@@ -1085,7 +1062,7 @@ export default function Detection() {
           // Blink Detection
           // =============================================
 
-          blinkDetector.current.update(averageEAR, performance.now(), result, result.faceLandmarks.indexOf(face));
+          blinkDetector.current.update(averageEAR, capturedAt, result, result.faceLandmarks.indexOf(face));
           setCalibrated(blinkDetector.current.isCalibrated());
           setBaselineEar(blinkDetector.current.getBaselineEAR());
           setCloseThreshold(blinkDetector.current.getFullThreshold());
@@ -1162,12 +1139,13 @@ export default function Detection() {
       // Continue Detection
       // =================================================
 
-      if (!stopped) {
-        animationId = requestAnimationFrame(detect);
-      }
+
     };
 
-    detect();
+    const stopFrames = startCameraFrames(video, detect, error => {
+      blinkDetector.current.interrupt();
+      console.error("Camera frame processing failed:", error);
+    });
 
     // ===================================================
     // Cleanup
@@ -1176,7 +1154,7 @@ export default function Detection() {
     return () => {
       stopped = true;
 
-      cancelAnimationFrame(animationId);
+      stopFrames();
       blinkDetector.current.interrupt();
     };
   }, [cameraOn, videoRef, saveBlinkRecord, calculateBlinkAverage]);

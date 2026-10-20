@@ -283,3 +283,24 @@ test('score flutter without recovered eye opening never rearms a held closure', 
   }
   assert.equal(detector.getBlinkCount(), 1);
 });
+
+test('baseline does not follow closing eyelids when model scores lag at 40 FPS', () => {
+  const { detector, frame } = setup();
+  for (let count = 1; count <= 5; count++) {
+    frame(0.27, 25, 0.05);
+    frame(0.23, 25, 0.1);
+    frame(0.18, 25, 0.3);
+    assert.equal(detector.getBlinkCount(), count);
+    assert.ok(detector.getBaselineEAR() > 0.29);
+    frame(0.3, 25, 0.05);
+    frame(0.3, 100, 0.05);
+  }
+});
+
+test('a lower resting view still recalibrates after it stays steady', () => {
+  const { detector, frame } = setup();
+  for (let i = 0; i < 10; i++) frame(0.22, 33, 0.05);
+  assert.equal(detector.getBaselineEAR(), 0.22);
+  frame(0.12, 33, 0.35);
+  assert.equal(detector.getBlinkCount(), 1);
+});

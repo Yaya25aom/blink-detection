@@ -19,6 +19,8 @@ export class BlinkDetector {
   private calibrationBlinks: number[] = [];
   private restingBlink = 0;
   private lastOpenGaze: number | null = null;
+  private openCandidateEAR = 0;
+  private openCandidateAt = 0;
   private baselineEAR = 0;
   private partialThreshold = 0;
   private fullThreshold = 0;
@@ -41,6 +43,7 @@ export class BlinkDetector {
     this.armed = false;
     this.closedFrames = 0;
     this.closureCounted = false;
+    this.openCandidateAt = 0;
     this.currentState = EyeState.OPEN;
     return this.currentState;
   }
@@ -128,9 +131,21 @@ export class BlinkDetector {
     }
     if (fullyOpen) {
       this.lastOpenGaze = gaze;
-      this.baselineEAR = ear;
-      this.partialThreshold = ear * 0.84;
-      this.fullThreshold = ear * 0.78;
+      // Model blink scores can lag behind eyelids. Never let a falling EAR
+      // drag the open baseline down during a blink. A new low resting view
+      // must stay steady for 200 ms before it replaces the reference.
+      if (ear >= this.baselineEAR * 0.95) {
+        this.baselineEAR += (ear - this.baselineEAR) * 0.1;
+        this.openCandidateAt = 0;
+      } else if (!this.openCandidateAt || Math.abs(ear - this.openCandidateEAR) > this.baselineEAR * 0.05) {
+        this.openCandidateEAR = ear;
+        this.openCandidateAt = now;
+      } else if (now - this.openCandidateAt >= 200) {
+        this.baselineEAR = ear;
+        this.openCandidateAt = 0;
+      }
+      this.partialThreshold = this.baselineEAR * 0.84;
+      this.fullThreshold = this.baselineEAR * 0.78;
     }
 
     // One confirmed open frame arms detection; no extra delay between blinks.
@@ -139,6 +154,7 @@ export class BlinkDetector {
       return this.currentState;
     }
 
+    if (closed) this.openCandidateAt = 0;
     if (!this.eyeWasClosed && closed) {
       this.eyeWasClosed = true;
       this.closedAt = now;
