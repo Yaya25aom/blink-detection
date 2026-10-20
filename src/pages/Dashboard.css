@@ -193,15 +193,14 @@
   .dashboard-panel { padding: 16px; }
 }
 
-/* Give the timeline the full row instead of squeezing it beside session history. */
-.app-usage-panel { grid-column: 1 / -1; }
+/* Keep the timeline in the original left-hand dashboard column. */
 .app-usage-heading { flex-wrap: wrap; gap: 12px; }
 .app-sort-hint { color: #64748b; font-size: 12px; }
-.app-usage-table { min-width: 840px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.app-usage-table { min-width: 680px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .app-usage-table th { background: #f5f7fb; padding: 0; text-transform: none; }
-.app-usage-table td { padding: 18px 16px; vertical-align: middle; white-space: nowrap; }
+.app-usage-table td { padding: 12px 10px; vertical-align: middle; white-space: nowrap; }
 .app-usage-table th:nth-child(2), .app-usage-table td:nth-child(2) { text-align: left; }
-.app-sort-button { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; width: 100%; padding: 15px 16px; border: 0; background: transparent; color: #64748b; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.app-sort-button { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; width: 100%; padding: 11px 10px; border: 0; background: transparent; color: #64748b; font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .app-usage-table th:nth-child(-n+2) .app-sort-button { justify-content: flex-start; }
 .app-sort-button.selected { color: #3159bd; background: #eaf0ff; font-weight: 700; }
 .app-sort-button:hover { background: #eaf0ff; }
@@ -213,7 +212,7 @@
 .app-live-badge { display: inline-block; margin-top: 6px; color: #2459a6; font-size: 11px; }
 .app-name { display: flex; align-items: center; gap: 12px; }
 .app-name strong { max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
-.app-icon { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; background: #eaf0ff; color: #4266b4; border-radius: 10px; }
+.app-icon { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; background: #eaf0ff; color: #4266b4; border-radius: 8px; }
 .app-seconds { color: #7a8799; font-size: 12px; }
 .app-blink-count { display: inline-block; min-width: 38px; padding: 5px 9px; border-radius: 7px; background: #edf0ff; color: #4954a6; font-weight: 700; }
 .app-status-badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
