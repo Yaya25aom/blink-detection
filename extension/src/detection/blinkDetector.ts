@@ -28,7 +28,6 @@ export class BlinkDetector {
   private eyeWasClosed = false;
   private closedAt = 0;
   private lastFrameAt = 0;
-  private lastBlinkAt = -Infinity;
   private closedFrames = 0;
   private closureCounted = false;
   private armed = false;
@@ -113,8 +112,13 @@ export class BlinkDetector {
     const blink = Math.min(left!, right!);
     const closed = blink >= 0.65 ||
       (ear <= this.fullThreshold && blink >= this.restingBlink + 0.2);
-    const open = Math.max(left!, right!) <= this.restingBlink + 0.15 ||
+    const fullyOpen = Math.max(left!, right!) <= this.restingBlink + 0.15 ||
       (ear >= this.baselineEAR * 0.88 && blink < this.restingBlink + 0.2);
+
+    // A rapid double blink may reopen only briefly while model scores lag.
+    // Require recovered eye geometry and lower scores; never rearm while closed.
+    const open = fullyOpen || (this.eyeWasClosed && !closed &&
+      ear >= this.baselineEAR * 0.88 && Math.max(left!, right!) <= this.restingBlink + 0.35);
 
     const gaze = Math.max(downLeft!, downRight!);
     // A gaze change can narrow the eyes without a blink. Once eyes reopen in
@@ -122,7 +126,7 @@ export class BlinkDetector {
     if (closed && this.lastOpenGaze !== null && Math.abs(gaze - this.lastOpenGaze) > 0.25) {
       return this.interrupt();
     }
-    if (open) {
+    if (fullyOpen) {
       this.lastOpenGaze = gaze;
       this.baselineEAR = ear;
       this.partialThreshold = ear * 0.84;
@@ -150,9 +154,8 @@ export class BlinkDetector {
       // Publish on confirmed closure, not reopening. The latch prevents repeat
       // counts while eyes stay shut. Weak evidence needs two closed frames.
       if (closed && !this.closureCounted && (strong || this.closedFrames >= 2) &&
-          now - this.closedAt <= 500 && now - this.lastBlinkAt >= 100) {
+          now - this.closedAt <= 500) {
         this.blinkCount++;
-        this.lastBlinkAt = now;
         this.closureCounted = true;
       }
       if (open) {

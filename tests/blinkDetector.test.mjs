@@ -251,3 +251,35 @@ test('losing tracking after an already counted closure never counts it again', (
   frame(0.18, 150);
   assert.equal(detector.getBlinkCount(), 2);
 });
+
+for (const fps of [30, 60]) {
+  test(`rapid closures separated by one open frame all count at ${fps} FPS`, () => {
+    const { detector, frame } = setup();
+    for (let count = 1; count <= 10; count++) {
+      frame(0.18, 1000 / fps);
+      assert.equal(detector.getBlinkCount(), count);
+      frame(0.3, 1000 / fps);
+      assert.equal(detector.getBlinkCount(), count);
+    }
+  });
+}
+
+test('brief reopening with lagging blink scores rearms without lowering the baseline', () => {
+  const { detector, frame } = setup();
+  for (let count = 1; count <= 10; count++) {
+    frame(0.18, 33, 0.85);
+    assert.equal(detector.getBlinkCount(), count);
+    frame(0.27, 33, 0.3);
+  }
+  assert.equal(detector.getBaselineEAR(), 0.3);
+});
+
+test('score flutter without recovered eye opening never rearms a held closure', () => {
+  const { detector, frame } = setup();
+  frame(0.18);
+  for (let i = 0; i < 10; i++) {
+    frame(0.2, 33, 0.3);
+    frame(0.18, 33, 0.85);
+  }
+  assert.equal(detector.getBlinkCount(), 1);
+});
