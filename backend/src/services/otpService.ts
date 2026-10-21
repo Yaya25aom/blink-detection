@@ -56,6 +56,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+export const sendPasswordResetEmail = (email: string, link: string) => transporter.sendMail({
+  from: process.env.EMAIL_USER,
+  to: email,
+  subject: "BlinkCare: เปลี่ยนรหัสผ่าน",
+  text: `กดลิงก์เพื่อตั้งรหัสผ่านใหม่ (ใช้ได้ 15 นาที): ${link}\nหากคุณไม่ได้ขอเปลี่ยนรหัสผ่าน ให้ละเว้นอีเมลนี้`,
+});
+
 async function sendOtpEmail(
   email: string,
   otp: string,

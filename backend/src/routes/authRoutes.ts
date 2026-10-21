@@ -2,6 +2,7 @@ import { Router } from "express";
 import { changePasswordController, currentUserController, googleCallbackController, loginController, logout, refresh, registerController, requestPasswordChangeOtpController, resendOtpController, updateCurrentUserController, verifyOtpController } from "../controllers/authController.js";
 import passport, { googleAuthConfigured } from "../config/passport.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
+import { requestPasswordReset, resetPassword } from "../controllers/passwordResetController.js";
 
 const router = Router();
 
@@ -16,6 +17,8 @@ router.get("/google/status", (_req, res) => {
 });
 router.post("/refresh", refresh);
 router.post("/login", loginController);
+router.post("/forgot-password", requestPasswordReset);
+router.post("/reset-password", resetPassword);
 router.post("/register", registerController);
 router.post("/resend-otp", resendOtpController);
 router.post("/logout", logout);

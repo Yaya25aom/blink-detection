@@ -32,6 +32,7 @@ import Downloads from "./pages/Downloads";
 import Profile from "./pages/Profile";
 import PlanActivity from "./pages/PlanActivity";
 import Admin from "./pages/Admin";
+import PasswordReset from "./pages/PasswordReset";
 
 import "./components/Sidebar.css";
 import "./App.css";
@@ -193,6 +194,8 @@ function App() {
         />
 
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<PasswordReset />} />
+        <Route path="/reset-password" element={<PasswordReset />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
 

@@ -106,3 +106,17 @@
   color: #dc2626;
   font-size: 14px;
 }
+
+.login-card .forgot-link {
+  width: auto;
+  display: block;
+  margin: -7px 0 18px auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #4f46e5;
+  font-size: 13px;
+}
+.login-card .forgot-link:hover { background: none; text-decoration: underline; }
+.reset-message { margin: 18px 0; color: #207357; text-align: center; font-size: 14px; }
+.reset-back { display: block; margin-top: 18px; text-align: center; color: #4f46e5; font-size: 14px; }

@@ -111,6 +111,8 @@ function Login() {
             />
           </div>
 
+          <button className="forgot-link" type="button" onClick={() => navigate("/forgot-password")}>ลืมรหัสผ่าน?</button>
+
           {error && <p className="error-message">{error}</p>}
 
           <button type="submit" disabled={loading}>
