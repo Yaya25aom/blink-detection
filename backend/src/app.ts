@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 
-import userRoutes from "./routes/user.routes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import blinkRoutes from "./routes/blinkRoutes.js";
 import detectionRoutes from "./routes/detectionRoutes.js";
@@ -25,7 +25,7 @@ app.get("/health", (_req, res) => {
 });
 
 
-app.use("/api", userRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
 
 app.use("/api/detection", blinkRoutes);

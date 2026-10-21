@@ -41,7 +41,7 @@ export const createLoginSession = async (user: LoginUser) => {
     UPDATE auth_service.user_auth
     SET last_login_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP
-    WHERE user_id = $1 AND login_provider = 'LOCAL'
+    WHERE user_id = $1
     `,
     [user.user_id],
   );
@@ -130,7 +130,7 @@ export async function findOrCreateGoogleUser(profile: {
 
     const emailResult = await client.query<LoginUser>(
       `
-      SELECT user_id, email, user_name, role_user
+      SELECT user_id, email, user_name, role_user, status_active
       FROM user_service.users
       WHERE LOWER(email) = $1 AND delete_flag = 0
       LIMIT 1
@@ -138,6 +138,10 @@ export async function findOrCreateGoogleUser(profile: {
       [normalizedEmail],
     );
     let user = emailResult.rows[0];
+
+    if (user && (user as LoginUser & { status_active: string }).status_active !== "ACTIVE") {
+      throw new Error("User account is not active");
+    }
 
     if (!user) {
       const baseName = (profile.displayName || normalizedEmail.split("@")[0] || "user").trim().slice(0, 90);
@@ -306,7 +310,7 @@ export async function verifyOtpLogin(userId: number, otp: string, referenceCode?
       u.user_name,
       u.role_user
     FROM user_service.users u
-    WHERE u.user_id = $1
+    WHERE u.user_id = $1 AND u.delete_flag = 0 AND u.status_active = 'ACTIVE'
     `,
     [userId],
   );

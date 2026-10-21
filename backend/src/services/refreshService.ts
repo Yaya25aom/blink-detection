@@ -35,7 +35,7 @@ export const refreshAccessToken = async (
       user_id,
       role_user
     FROM user_service.users
-    WHERE user_id = $1
+    WHERE user_id = $1 AND delete_flag = 0 AND status_active = 'ACTIVE'
     LIMIT 1
     `,
     [token.user_id]

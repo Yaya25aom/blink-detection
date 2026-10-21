@@ -20,6 +20,7 @@ import {
   LuChevronDown,
   LuChevronUp,
   LuDownload,
+  LuShieldCheck,
 } from "react-icons/lu";
 
 type Props = {
@@ -76,6 +77,7 @@ export default function Sidebar({ current, onChange }: Props) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [userName, setUserName] = useState("");
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // ==========================
   // Check Login
@@ -91,6 +93,7 @@ export default function Sidebar({ current, onChange }: Props) {
     if (!localStorage.getItem("accessToken")) {
       setUserName("");
       setUserAvatar(null);
+      setIsAdmin(false);
       return;
     }
     try {
@@ -99,10 +102,12 @@ export default function Sidebar({ current, onChange }: Props) {
       if (response.ok && typeof result.data?.user_name === "string") {
         setUserName(result.data.user_name);
         setUserAvatar(typeof result.data.avatar === "string" ? result.data.avatar : null);
+        setIsAdmin(String(result.data.role_user).toUpperCase() === "ADMIN");
       }
     } catch {
       setUserName("");
       setUserAvatar(null);
+      setIsAdmin(false);
     }
   }, []);
 
@@ -225,6 +230,11 @@ export default function Sidebar({ current, onChange }: Props) {
               )}
             </div>
           ))}
+          {isAdmin && (
+            <button className={current === "Admin" ? "menu active" : "menu"} onClick={() => onChange("Admin")}>
+              <LuShieldCheck /><span>Admin</span>
+            </button>
+          )}
         </div>
 
         {/* ================= Setting ================= */}

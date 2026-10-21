@@ -91,7 +91,13 @@ export const authenticateToken = async (
     if (decoded.user_id === undefined || typeof decoded.role_user !== "string") {
       return res.status(401).json({ message: "Invalid token payload" });
     }
-    req.user = decoded as Express.User;
+    const account = await pool.query(
+      `SELECT role_user FROM user_service.users
+       WHERE user_id = $1 AND delete_flag = 0 AND status_active = 'ACTIVE'`,
+      [decoded.user_id]
+    );
+    if (!account.rows[0]) return res.status(401).json({ message: "Account is inactive" });
+    req.user = { ...decoded, role_user: account.rows[0].role_user } as Express.User;
 
     next();
 

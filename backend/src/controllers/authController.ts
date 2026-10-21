@@ -24,7 +24,7 @@ export async function currentUserController(req: Request, res: Response) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
     const result = await pool.query(
-      `SELECT u.user_id, u.user_name, u.email, u.created_at,
+      `SELECT u.user_id, u.user_name, u.email, u.role_user, u.created_at,
               u.avatar_data, u.avatar_mime_type,
               EXISTS (
                 SELECT 1 FROM auth_service.user_auth a
@@ -44,6 +44,7 @@ export async function currentUserController(req: Request, res: Response) {
         user_id: user.user_id,
         user_name: user.user_name,
         email: user.email,
+        role_user: user.role_user,
         created_at: user.created_at,
         has_password: user.has_password,
         avatar: profileAvatar(user.avatar_data, user.avatar_mime_type),
