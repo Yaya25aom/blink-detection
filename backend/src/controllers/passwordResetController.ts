@@ -5,8 +5,8 @@ import { pool } from "../config/database.js";
 import { sendPasswordResetEmail } from "../services/otpService.js";
 
 const reply = { message: "หากอีเมลนี้มีบัญชีในระบบ เราจะส่งรหัสตั้งรหัสผ่านใหม่ให้" };
-const codeHash = (code: string) =>
-  createHmac("sha256", process.env.JWT_SECRET!).update(code).digest("hex");
+const codeHash = (userId: number, code: string) =>
+  createHmac("sha256", process.env.JWT_SECRET!).update(`${userId}:${code}`).digest("hex");
 const attempts = new Map<string, { count: number; until: number }>();
 
 export async function requestPasswordReset(req: Request, res: Response) {
@@ -23,7 +23,7 @@ export async function requestPasswordReset(req: Request, res: Response) {
     const user = result.rows[0];
     if (!user) return res.json(reply);
     if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not configured");
-    const code = String(randomInt(10_000_000, 100_000_000));
+    const code = String(randomInt(100_000, 1_000_000));
     const saved = await pool.query(
       `INSERT INTO auth_service.password_reset_request (user_id, code_hash, expires_at)
        VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '15 minutes')
@@ -31,14 +31,14 @@ export async function requestPasswordReset(req: Request, res: Response) {
          requested_at = CURRENT_TIMESTAMP, expires_at = EXCLUDED.expires_at, attempts = 0
        WHERE password_reset_request.requested_at < CURRENT_TIMESTAMP - INTERVAL '60 seconds'
        RETURNING user_id`,
-      [user.user_id, codeHash(code)],
+      [user.user_id, codeHash(user.user_id, code)],
     );
     if (saved.rowCount) {
       const frontend = (process.env.FRONTEND_URL ?? "https://blink-detection-two.vercel.app").replace(/\/$/, "");
       try {
-        await sendPasswordResetEmail(user.email, `${frontend}/reset-password`, code);
+        await sendPasswordResetEmail(user.email, `${frontend}/reset-password#u=${user.user_id}`, code);
       } catch (error) {
-        await pool.query(`DELETE FROM auth_service.password_reset_request WHERE user_id = $1 AND code_hash = $2`, [user.user_id, codeHash(code)]);
+        await pool.query(`DELETE FROM auth_service.password_reset_request WHERE user_id = $1 AND code_hash = $2`, [user.user_id, codeHash(user.user_id, code)]);
         throw error;
       }
     }
@@ -50,10 +50,11 @@ export async function requestPasswordReset(req: Request, res: Response) {
 }
 
 export async function resetPassword(req: Request, res: Response) {
+  const userId = Number(req.body?.user_id);
   const code = String(req.body?.code ?? "");
   const password = String(req.body?.password ?? "");
-  if (!/^\d{8}$/.test(code) || password.length < 8 || password.length > 128) {
-    return res.status(400).json({ message: "กรุณากรอกรหัส 8 หลักและรหัสผ่านใหม่ 8–128 ตัวอักษร" });
+  if (!Number.isSafeInteger(userId) || userId <= 0 || !/^\d{6}$/.test(code) || password.length < 8 || password.length > 128) {
+    return res.status(400).json({ message: "กรุณากรอกรหัส 6 หลักและรหัสผ่านใหม่ 8–128 ตัวอักษร" });
   }
   const ip = req.ip ?? "unknown";
   const limit = attempts.get(ip);
@@ -64,14 +65,19 @@ export async function resetPassword(req: Request, res: Response) {
   try {
     await client.query("BEGIN");
     const result = await client.query(
-      `SELECT r.user_id FROM auth_service.password_reset_request r
+      `SELECT r.user_id, r.code_hash, r.attempts FROM auth_service.password_reset_request r
        JOIN user_service.users u ON u.user_id = r.user_id
-       WHERE r.code_hash = $1 AND u.delete_flag = 0 AND u.status_active = 'ACTIVE'
+       WHERE r.user_id = $1 AND u.delete_flag = 0 AND u.status_active = 'ACTIVE'
          AND r.expires_at > CURRENT_TIMESTAMP FOR UPDATE OF r`,
-      [codeHash(code)],
+      [userId],
     );
     const request = result.rows[0];
-    if (!request) throw new Error("INVALID_CODE");
+    if (!request || request.attempts >= 5) throw new Error("INVALID_CODE");
+    if (request.code_hash !== codeHash(userId, code)) {
+      await client.query(`UPDATE auth_service.password_reset_request SET attempts = attempts + 1 WHERE user_id = $1`, [userId]);
+      await client.query("COMMIT");
+      return res.status(400).json({ message: "รหัสไม่ถูกต้องหรือหมดอายุ กรุณาขอรหัสใหม่" });
+    }
     await client.query(
       `UPDATE auth_service.user_auth SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
        WHERE user_id = $2 AND login_provider = 'LOCAL'`,
