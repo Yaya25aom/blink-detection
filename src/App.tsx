@@ -6,6 +6,8 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { apiFetch } from "./services/apiClient";
 
 import Sidebar from "./components/Sidebar";
 import PlanReminder from "./components/PlanReminder";
@@ -39,6 +41,23 @@ function MainApp() {
   const location = useLocation();
   const navigate = useNavigate();
   const isLoggedIn = Boolean(localStorage.getItem("accessToken"));
+  const [role, setRole] = useState<"loading" | "admin" | "user">(isLoggedIn ? "loading" : "user");
+
+  useEffect(() => {
+    let active = true;
+    const loadRole = async () => {
+      if (!localStorage.getItem("accessToken")) { if (active) setRole("user"); return; }
+      if (active) setRole("loading");
+      try {
+        const response = await apiFetch("/auth/me");
+        const result = await response.json();
+        if (active) setRole(response.ok && String(result.data?.role_user).toUpperCase() === "ADMIN" ? "admin" : "user");
+      } catch { if (active) setRole("user"); }
+    };
+    void loadRole();
+    window.addEventListener("blinkcare:auth-updated", loadRole);
+    return () => { active = false; window.removeEventListener("blinkcare:auth-updated", loadRole); };
+  }, []);
   const routes: Record<string, string> = {
     Overview: "/",
     Dashboard: "/dashboard",
@@ -59,6 +78,9 @@ function MainApp() {
   if (!isLoggedIn && location.pathname !== "/") {
     return <Navigate to="/auth" replace state={{ returnTo: location.pathname }} />;
   }
+  if (isLoggedIn && role === "loading") return null;
+  if (isLoggedIn && role === "admin" && location.pathname !== "/admin") return <Navigate to="/admin" replace />;
+  if (role === "user" && location.pathname === "/admin") return <Navigate to="/" replace />;
 
   const changePage = (nextPage: string) => {
     if (!isLoggedIn && nextPage !== "Overview") {
@@ -74,17 +96,16 @@ function MainApp() {
 
     <div className="container">
 
-      <PlanReminder />
-      <PlanNotificationToast />
-      <DetectionHealthAlerts />
+      {role !== "admin" && <><PlanReminder /><PlanNotificationToast /><DetectionHealthAlerts /></>}
 
       <Sidebar
         current={page}
         onChange={changePage}
+        isAdmin={role === "admin"}
       />
 
 
-      <main className="main">
+      <main className={role === "admin" ? "main admin-main" : "main"}>
 
         {page === "Overview" && (
           <Overview onNavigate={changePage} />

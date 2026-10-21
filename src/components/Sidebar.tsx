@@ -3,7 +3,7 @@ import "./Sidebar.css";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { clearTokens } from "../utils/token";
-import { apiFetch } from "../services/apiClient";
+import { API_URL, apiFetch } from "../services/apiClient";
 
 import { FaEye } from "react-icons/fa";
 
@@ -26,6 +26,7 @@ import {
 type Props = {
   current: string;
   onChange: (page: string) => void;
+  isAdmin: boolean;
 };
 
 const menus = [
@@ -71,13 +72,12 @@ const bottomMenus = [
   },
 ];
 
-export default function Sidebar({ current, onChange }: Props) {
+export default function Sidebar({ current, onChange, isAdmin }: Props) {
   const navigate = useNavigate();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [userName, setUserName] = useState("");
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   // ==========================
   // Check Login
@@ -93,7 +93,6 @@ export default function Sidebar({ current, onChange }: Props) {
     if (!localStorage.getItem("accessToken")) {
       setUserName("");
       setUserAvatar(null);
-      setIsAdmin(false);
       return;
     }
     try {
@@ -102,12 +101,10 @@ export default function Sidebar({ current, onChange }: Props) {
       if (response.ok && typeof result.data?.user_name === "string") {
         setUserName(result.data.user_name);
         setUserAvatar(typeof result.data.avatar === "string" ? result.data.avatar : null);
-        setIsAdmin(String(result.data.role_user).toUpperCase() === "ADMIN");
       }
     } catch {
       setUserName("");
       setUserAvatar(null);
-      setIsAdmin(false);
     }
   }, []);
 
@@ -144,7 +141,7 @@ export default function Sidebar({ current, onChange }: Props) {
     const refreshToken = localStorage.getItem("refreshToken");
 
     try {
-      const response = await fetch("https://api.blinkcare.website/api/auth/logout", {
+      const response = await fetch(`${API_URL}/auth/logout`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -190,11 +187,11 @@ export default function Sidebar({ current, onChange }: Props) {
               ? "Realtime Detection"
               : current === "Downloads"
                 ? "ดาวน์โหลดแอปและ Extension"
-                : current}
+                : current === "Admin" ? "ผู้ดูแลระบบ" : current}
           </span>
         </div>
       </header>
-      <div className="sidebar">
+      <div className={isAdmin ? "sidebar admin-sidebar" : "sidebar"}>
         {/* ================= Logo ================= */}
 
         {/* <div className="logo">
@@ -213,7 +210,7 @@ export default function Sidebar({ current, onChange }: Props) {
         {/* ================= Main Menu ================= */}
 
         <div className="main-menus">
-          {menus.map((menu) => (
+          {!isAdmin && menus.map((menu) => (
             <div className="menu-group" key={menu.name}>
               <button
                 className={current === menu.name || (menu.name === "Dashboard" && current === "Multi-day Dashboard") ? "menu active" : "menu"}
@@ -235,19 +232,20 @@ export default function Sidebar({ current, onChange }: Props) {
               <LuShieldCheck /><span>Admin</span>
             </button>
           )}
+          {isAdmin && <button className="menu admin-logout" onClick={handleLogout}><LuLogOut /><span>ออกจากระบบ</span></button>}
         </div>
 
         {/* ================= Setting ================= */}
 
-        <div className="divider"></div>
+        {!isAdmin && <div className="divider"></div>}
 
-        <div className="Menubottom">
+        {!isAdmin && <div className="Menubottom">
           <p className="setting">Setting</p>
-        </div>
+        </div>}
 
         {/* ================= Bottom Menu ================= */}
 
-        <div className="bottom-menus">
+        {!isAdmin && <div className="bottom-menus">
           {bottomMenus.map((menu) => (
             <button
               key={menu.name}
@@ -259,11 +257,11 @@ export default function Sidebar({ current, onChange }: Props) {
               <span>{"label" in menu ? menu.label : menu.name}</span>
             </button>
           ))}
-        </div>
+        </div>}
 
         {/* ================= Profile ================= */}
 
-        <div className="profile-section">
+        {!isAdmin && <div className="profile-section">
           {isLoggedIn ? (
             <>
               {/* ================= Logged In ================= */}
@@ -333,7 +331,7 @@ export default function Sidebar({ current, onChange }: Props) {
               </div>
             </>
           )}
-        </div>
+        </div>}
       </div>
     </>
   );
