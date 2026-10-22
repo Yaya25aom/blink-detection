@@ -22,7 +22,7 @@ import "./Downloads.css";
 const WINDOWS_URL = import.meta.env.VITE_HELPER_WINDOWS_URL as string | undefined;
 const MACOS_URL = (import.meta.env.VITE_HELPER_MACOS_URL as string | undefined)
   ?? "/downloads/blink-helper-macos-arm64.dmg";
-const EXTENSION_URL = "/downloads/blinkcare-extension-dev.zip";
+const EXTENSION_URL = "/downloads/blinkcare-extension-dev.zip?v=1.0.18";
 
 export default function Downloads() {
   const location = useLocation();
