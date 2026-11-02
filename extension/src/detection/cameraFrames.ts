@@ -3,8 +3,7 @@ type TrackProcessor = new (options: { track: MediaStreamTrack; maxBufferSize: nu
   readable: ReadableStream<VideoFrame>;
 };
 
-// Read the camera directly: a hidden offscreen document must not rely on paint
-// callbacks or throttled timers. Keep only the newest frame when inference is slow.
+
 export function startCameraFrames(video: HTMLVideoElement, onFrame: FrameHandler, onError: (error: unknown) => void) {
   const Processor = (globalThis as typeof globalThis & { MediaStreamTrackProcessor?: TrackProcessor }).MediaStreamTrackProcessor;
   const source = (video.srcObject as MediaStream | null)?.getVideoTracks()[0];

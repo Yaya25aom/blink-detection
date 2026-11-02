@@ -1469,7 +1469,7 @@ export default function Detection() {
         <div className="stat-card">
           <p>Duration</p>
 
-          <h2>{formatDuration(duration)}</h2>
+          <h2>{Math.floor(duration/60)}</h2>
         </div>
       </div>
       {/* =================================================

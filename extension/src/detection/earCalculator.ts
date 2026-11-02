@@ -23,9 +23,7 @@ export function calculateEAR(
   return (A + B) / (2 * C);
 }
 
-/**
- * EAR เฉลี่ยของสองตา
- */
+// EAR เฉลี่ยของสองตา
 export function calculateAverageEAR(
   leftEye: NormalizedLandmark[],
   rightEye: NormalizedLandmark[]

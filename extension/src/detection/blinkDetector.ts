@@ -18,13 +18,13 @@ export class BlinkDetector {
   private calibrationStartedAt: number | null = null;
   private calibrationBlinks: number[] = [];
   private restingBlink = 0;
-  private lastOpenGaze: number | null = null;
-  private openCandidateEAR = 0;
-  private openCandidateAt = 0;
   private baselineEAR = 0;
   private partialThreshold = 0;
   private fullThreshold = 0;
   private calibrated = false;
+  private lastOpenGaze: number | null = null;
+  private openCandidateEAR = 0;
+  private openCandidateAt = 0;
   private currentState: EyeState = EyeState.OPEN;
   private blinkCount = 0;
   private eyeWasClosed = false;
@@ -127,22 +127,17 @@ export class BlinkDetector {
       Math.max(left!, right!) <= this.restingBlink + 0.15 ||
       (ear >= this.baselineEAR * 0.88 && blink < this.restingBlink + 0.2));
 
-    // A rapid double blink may reopen only briefly while model scores lag.
-    // Require recovered eye geometry and lower scores; never rearm while closed.
     const open = fullyOpen || (this.eyeWasClosed && !closed &&
       ear >= this.baselineEAR * 0.88 && Math.max(left!, right!) <= this.restingBlink + 0.35);
 
     const gaze = Math.max(downLeft!, downRight!);
-    // A gaze change can narrow the eyes without a blink. Once eyes reopen in
-    // that view, accept subsequent blinks there, even with a high look-down score.
+  
     if (closed && !deepClosure && this.lastOpenGaze !== null && Math.abs(gaze - this.lastOpenGaze) > 0.25) {
       return this.interrupt();
     }
     if (fullyOpen) {
       this.lastOpenGaze = gaze;
-      // Model blink scores can lag behind eyelids. Never let a falling EAR
-      // drag the open baseline down during a blink. A new low resting view
-      // must stay steady for 200 ms before it replaces the reference.
+
       if (ear >= this.baselineEAR * 0.95) {
         this.baselineEAR += (ear - this.baselineEAR) * 0.1;
         this.openCandidateAt = 0;
@@ -157,35 +152,41 @@ export class BlinkDetector {
       this.fullThreshold = this.baselineEAR * 0.78;
     }
 
+    // 1
     // One confirmed open frame arms detection; no extra delay between blinks.
-    if (!this.armed) {
-      this.armed = open;
+    if (!this.armed) { //ยังไม่พร้อมตรวจการปิดตา armed = พร้อมรับการปิดตาครั้งใหม่หรือยัง เลยดูเฟรมนี้ว่าตาเปิดมั้ย
+      this.armed = open; // ถ้าเฟรมนี้ตาเปิด armed = true พร้อมรับการปิดตาครั้งใหม่
       return this.currentState;
     }
 
+    // 2
     if (closed) this.openCandidateAt = 0;
+    // เริ่มติดตามการปิดตา
     if (!this.eyeWasClosed && closed) {
-      this.eyeWasClosed = true;
-      this.closedAt = now;
-      this.closedFrames = 0;
-      this.closureCounted = false;
+      this.eyeWasClosed = true; // เริ่มติดตามการปิดตา
+      this.closedAt = now; //จำเวลาที่เริ่มปิด
+      this.closedFrames = 0; // นับจำนวนเฟรมที่ปิด
+      this.closureCounted = false; // รีเซ็ตการนับการปิดตา
     }
-
+    // 3
     if (this.eyeWasClosed) {
+      // นับจำนวนเฟรมที่ตาปิด จากนั้นไปตรวจเงื่อนไขก่อนนับปิดจริงๆ โค้ดข้างล่าง
       if (closed) {
         this.closedFrames++;
       }
       const strong = blink >= 0.65 || (closed && ear <= this.baselineEAR * 0.65);
-      // Publish on confirmed closure, not reopening. The latch prevents repeat
-      // counts while eyes stay shut. Weak evidence needs two closed frames.
-      if (closed && !this.closureCounted && (strong || this.closedFrames >= 2) &&
-          now - this.closedAt <= 500) {
-        this.blinkCount++;
+
+      // 3.1
+      // ตรวจเงื่อนไขก่อนนับตาปิดจริงๆ //closed บอกว่าเฟรมนี้ตาปิด //closureCounted การปิดรอบนี้ยังไม่เคยนับ
+      if (closed && !this.closureCounted && (strong || this.closedFrames >= 2) && //หลักฐานการปิดตาชัดมา หรือว่าเห็นตาปิดอย่างน้อย 2 เฟรม
+          now - this.closedAt <= 500) { // ยังอยู่ในภายใน 500มิลลิวินาทีนับจากเริ่มปิด
+        this.blinkCount++; //ถ้าผ่านทั้งหมด มันจะนับ blinkcount = 1 และ closureCounted = true เพื่อไม่ให้นับซ้ำ
         this.closureCounted = true;
       }
-      if (open) {
-        this.armed = true;
-        this.eyeWasClosed = false;
+    // 4
+      if (open) { // เฟรมถัดมาพบว่าลืมตาแล้ว จะรีเซ็ต eyeWasClosed = false เพื่อเริ่มนับใหม่
+        this.armed = true; 
+        this.eyeWasClosed = false; // ตาลืมแล้วระบบเปลี่ยนเป็น false
         this.closedAt = 0;
         this.currentState = EyeState.OPEN;
       } else {

@@ -30,9 +30,8 @@ export interface EyeLandmarks {
   rightEye: NormalizedLandmark[];
 }
 
-/**
- * ดึง Landmark ของดวงตา
- */
+//ดึง Landmark ของดวงตา
+ 
 export function extractEyeLandmarks(
   face: NormalizedLandmark[]
 ): EyeLandmarks {

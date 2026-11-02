@@ -11,8 +11,10 @@ const shouldBypassOtp = (email: string) => {
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
-  return email.trim().toLowerCase() === REVIEW_ACCOUNT_EMAIL ||
-    configuredEmails.includes(email.trim().toLowerCase());
+  return (
+    email.trim().toLowerCase() === REVIEW_ACCOUNT_EMAIL ||
+    configuredEmails.includes(email.trim().toLowerCase())
+  );
 };
 
 export type LoginUser = {
@@ -58,7 +60,11 @@ export const createLoginSession = async (user: LoginUser) => {
   };
 };
 
-export async function registerLocalUser(userName: string, email: string, password: string) {
+export async function registerLocalUser(
+  userName: string,
+  email: string,
+  password: string,
+) {
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedUserName = userName.trim();
   const client = await pool.connect();
@@ -70,8 +76,17 @@ export async function registerLocalUser(userName: string, email: string, passwor
        WHERE (LOWER(email) = $1 OR LOWER(user_name) = LOWER($2)) AND delete_flag = 0`,
       [normalizedEmail, normalizedUserName],
     );
-    if (existing.rows.some((row) => row.email.toLowerCase() === normalizedEmail)) throw new Error("EMAIL_ALREADY_EXISTS");
-    if (existing.rows.some((row) => row.user_name.toLowerCase() === normalizedUserName.toLowerCase())) throw new Error("USERNAME_ALREADY_EXISTS");
+    if (
+      existing.rows.some((row) => row.email.toLowerCase() === normalizedEmail)
+    )
+      throw new Error("EMAIL_ALREADY_EXISTS");
+    if (
+      existing.rows.some(
+        (row) =>
+          row.user_name.toLowerCase() === normalizedUserName.toLowerCase(),
+      )
+    )
+      throw new Error("USERNAME_ALREADY_EXISTS");
 
     const userResult = await client.query<LoginUser>(
       `
@@ -93,7 +108,11 @@ export async function registerLocalUser(userName: string, email: string, passwor
       [user.user_id, passwordHash],
     );
     await client.query("COMMIT");
-    return { user_id: user.user_id, email: user.email, user_name: user.user_name };
+    return {
+      user_id: user.user_id,
+      email: user.email,
+      user_name: user.user_name,
+    };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -139,18 +158,31 @@ export async function findOrCreateGoogleUser(profile: {
     );
     let user = emailResult.rows[0];
 
-    if (user && (user as LoginUser & { status_active: string }).status_active !== "ACTIVE") {
+    if (
+      user &&
+      (user as LoginUser & { status_active: string }).status_active !== "ACTIVE"
+    ) {
       throw new Error("User account is not active");
     }
 
     if (!user) {
-      const baseName = (profile.displayName || normalizedEmail.split("@")[0] || "user").trim().slice(0, 90);
+      const baseName = (
+        profile.displayName ||
+        normalizedEmail.split("@")[0] ||
+        "user"
+      )
+        .trim()
+        .slice(0, 90);
       let availableName = baseName;
       let suffix = 1;
-      while ((await client.query(
-        `SELECT 1 FROM user_service.users WHERE LOWER(user_name) = LOWER($1) AND delete_flag = 0 LIMIT 1`,
-        [availableName],
-      )).rows.length > 0) {
+      while (
+        (
+          await client.query(
+            `SELECT 1 FROM user_service.users WHERE LOWER(user_name) = LOWER($1) AND delete_flag = 0 LIMIT 1`,
+            [availableName],
+          )
+        ).rows.length > 0
+      ) {
         suffix += 1;
         availableName = `${baseName}-${suffix}`.slice(0, 100);
       }
@@ -191,7 +223,7 @@ export async function findOrCreateGoogleUser(profile: {
 export async function login(identifier: string, password: string) {
   const normalizedIdentifier = identifier.trim().toLowerCase();
   const usesEmail = normalizedIdentifier.includes("@");
-  // 1. หา User
+  // 1. ค้นหา User โดยใช้ email หรือ username
   const userResult = await pool.query(
     `
     SELECT
@@ -297,7 +329,11 @@ export async function login(identifier: string, password: string) {
   //   };
 }
 
-export async function verifyOtpLogin(userId: number, otp: string, referenceCode?: string) {
+export async function verifyOtpLogin(
+  userId: number,
+  otp: string,
+  referenceCode?: string,
+) {
   // ตรวจ OTP
   await verifyOtp(userId, otp, referenceCode);
 
