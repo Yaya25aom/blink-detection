@@ -31,11 +31,13 @@ export function startCameraFrames(video: HTMLVideoElement, onFrame: FrameHandler
     try {
       if (reader) {
         while (!stopped) {
+          //รับเฟรมจากกล้อง done บอกว่าสตรีมจบแล้วหรือยัง
           const { value: frame, done } = await reader.read();
           if (done) break;
           try {
+            //ส่งเฟรมไปประมวลผลและรอให้เสร็จ
             if (!stopped) await onFrame(frame, performance.now());
-          } finally {
+          } finally { //ปล่อยทรัพยากรของเฟรมที่ใช้เสร็จ
             frame.close();
           }
         }

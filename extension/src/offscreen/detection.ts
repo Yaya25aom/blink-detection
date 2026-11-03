@@ -69,6 +69,7 @@ const sendAlert = (key: string, title: string, message: string) => {
   const now = Date.now();
   if (now - (alertCooldowns.get(key) ?? 0) < 5 * 60_000) return;
   alertCooldowns.set(key, now);
+  //ตารางจับคู่ชื่อ key กับ category ของ alert เพื่อส่งไปยัง background script
   const categories: Record<string, string> = {
     "low-blink": "LOW_BLINK",
     "face-missing": "FACE_MISSING",
@@ -111,8 +112,10 @@ const detectionLoop = async (frame: VideoFrame | HTMLVideoElement, capturedAt: n
   if (!monitoring) return;
 
   if (!paused) {
+    // 1. ส่งภาพให้ Mediapipe วิเคราะห์หาใบหน้า
     const result = await detectFace(frame);
     if (!monitoring || paused) return;
+    //2. เลือกใบหน้าที่พบ
     const face = result ? selectPrimaryFace(result.faceLandmarks) : null;
     const now = Date.now();
     fpsFrames++;
@@ -121,15 +124,16 @@ const detectionLoop = async (frame: VideoFrame | HTMLVideoElement, capturedAt: n
       fpsFrames = 0;
       fpsStartedAt = now;
     }
-
+    //3. เมื่อพบใบหน้า ดึงจุดตาปละคำนวณ EAR
     if (face && result) {
       lastFaceSeenAt = now;
       if (activeStartedAt === 0) activeStartedAt = now;
       const eyes = extractEyeLandmarks(face);
       const averageEar = calculateAverageEAR(eyes.leftEye, eyes.rightEye);
       currentEar = averageEar;
-      detector.update(averageEar, capturedAt, result, result.faceLandmarks.indexOf(face));
-      const total = detector.getBlinkCount();
+      //4. ส่งค่า EAR และผลลัพธ์ของ Mediapipe ให้ BlinkDetector ตัดสินว่ากะพริบหรือไม่
+      detector.update(averageEar, capturedAt, result, result.faceLandmarks.indexOf(face)); // หาจุดใบหน้า คำนวณ EAR และส่งไปให้ BlinkDetector ตัดสิน
+      const total = detector.getBlinkCount(); // อ่านจำนวนblinkกลับมา
       if (total > lastBlinkCount) {
         blinkTimestamps.push(now);
         lastBlinkCount = total;
@@ -170,9 +174,9 @@ const detectionLoop = async (frame: VideoFrame | HTMLVideoElement, capturedAt: n
       }
       if (now - activeStartedAt >= 60_000 && blinkTimestamps.length < 12) {
         sendAlert(
-          "low-blink",
-          "อัตราการกะพริบตาต่ำ",
-          `ขณะนี้ ${blinkTimestamps.length} ครั้ง/นาที ควรกะพริบอย่างน้อย 12 ครั้ง/นาที`,
+          "low-blink", //ส่งเข้าพารามิเตอร์ key 
+          "อัตราการกะพริบตาต่ำ", //ส่งเข้า title
+          `ขณะนี้ ${blinkTimestamps.length} ครั้ง/นาที ควรกะพริบอย่างน้อย 12 ครั้ง/นาที`, //ส่งเข้า message
         );
       }
     }
@@ -193,12 +197,12 @@ const startMonitoring = async () => {
 
   console.log("[BlinkCare] 1. Creating FaceLandmarker...");
 
-  await createFaceDetector();
+  await createFaceDetector(); //สร้าง Mediapipe FaceLandmarker model
 
   console.log("[BlinkCare] 2. FaceLandmarker ready");
 
   console.log("[BlinkCare] 3. Requesting camera...");
-
+  //ขอเปิดกล้อง
   stream = await navigator.mediaDevices.getUserMedia({
     video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
     audio: false,

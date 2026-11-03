@@ -373,7 +373,7 @@ const updateBadge = async (monitoring: boolean, paused = false) => {
 
 const startBackendSession = async (auth: ExtensionAuth) => {
   // The backend heartbeat is authoritative; local storage can survive a crash.
-  const response = await authenticatedFetch(auth, "/detection/start", {
+  const response = await authenticatedFetch(auth, "/detection/start", { //1. ขอสร้าง session จาก Backend
     method: "POST",
     body: JSON.stringify({ source: "EXTENSION" }),
   });
@@ -385,7 +385,7 @@ const startBackendSession = async (auth: ExtensionAuth) => {
     blinkcareSessionId: result.data.session_id,
     blinkcareSessionUserId: auth.userId,
   });
-  const appUsageResponse = await authenticatedFetch(auth, "/app-usage/session", {
+  const appUsageResponse = await authenticatedFetch(auth, "/app-usage/session", { //2. ผูก session ติดตามแอป
     method: "POST",
     body: JSON.stringify({ session_id: result.data.session_id }),
   });
@@ -394,7 +394,7 @@ const startBackendSession = async (auth: ExtensionAuth) => {
   }
 
   try {
-    const helperResponse = await fetch(`${HELPER_BASE_URL}/session`, {
+    const helperResponse = await fetch(`${HELPER_BASE_URL}/session`, { //3. ส่ง seesion ให้ Helper
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -753,7 +753,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       const plan = await loadActivePlan(true);
       await resetSessionPlanProgress(plan, auth.userId);
       await ensureOffscreenDocument();
-      await chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_START" });
+      await chrome.runtime.sendMessage({ target: "offscreen", type: "BLINKCARE_START" }); // 4.ส่งคำสั่ง BLINKCARE_START ให้ Offscreen Document เพื่อเริ่มการตรวจจับ แล้ว offscreen จะโหลด MediaPipe
     }).then(() => sendResponse({ ok: true })).catch((error: unknown) => sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : String(error),
